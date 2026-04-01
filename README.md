@@ -1,5 +1,9 @@
 # GroupUs Desktop Client
 
+<p align="center">
+  <img src="build/icons/groupus-logo.svg" alt="GroupUs logo" width="180" />
+</p>
+
 GroupUs is an unofficial desktop client for GroupMe, built with Electron + React + Vite.
 
 ## Supported Platforms

@@ -1,8 +1,8 @@
 {
-  "name": "groupme-mac-client",
+  "name": "groupus-desktop-client",
   "private": true,
   "version": "1.0.0",
-  "description": "Unofficial cross-platform GroupMe desktop client built with Electron and React.",
+  "description": "Unofficial cross-platform GroupUs desktop client for GroupMe, built with Electron and React.",
   "author": {
     "name": "Kevin Pulikkottil",
     "email": "kpulik@users.noreply.github.com"
@@ -48,8 +48,9 @@
     "wait-on": "^7.2.0"
   },
   "build": {
-    "appId": "com.groupme.mac.client",
-    "productName": "GroupMe",
+    "appId": "com.groupus.desktop",
+    "productName": "GroupUs",
+    "artifactName": "GroupUs-${version}-${os}-${arch}.${ext}",
     "publish": [
       {
         "provider": "github",
@@ -58,6 +59,7 @@
       }
     ],
     "mac": {
+      "icon": "build/icons/icon.icns",
       "category": "public.app-category.social-networking",
       "target": [
         "dmg",
@@ -65,11 +67,13 @@
       ]
     },
     "win": {
+      "icon": "build/icons/icon.ico",
       "target": [
         "nsis"
       ]
     },
     "linux": {
+      "icon": "build/icons/icon.png",
       "target": [
         "AppImage",
         "deb"

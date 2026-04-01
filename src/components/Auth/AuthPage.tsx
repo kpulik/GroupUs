@@ -27,7 +27,7 @@ export function AuthPage({ onAuthenticate }: AuthPageProps) {
             <div className="inline-flex items-center justify-center w-20 h-20 bg-blue-500 rounded-3xl mb-6 shadow-lg">
               <LogIn className="w-10 h-10 text-white" />
             </div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">GroupMe</h1>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">GroupUs</h1>
             <p className="text-gray-600 text-lg">Welcome back</p>
           </div>
 
@@ -85,7 +85,7 @@ export function AuthPage({ onAuthenticate }: AuthPageProps) {
         </div>
 
         <p className="text-center text-sm text-gray-600 mt-6">
-          This is an unofficial GroupMe desktop client
+          This is an unofficial GroupUs desktop client for GroupMe
         </p>
       </div>
     </div>
