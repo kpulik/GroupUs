@@ -94,6 +94,38 @@ Recommended release process:
 4. Push commit + tag.
 5. GitHub Actions builds and publishes macOS, Windows, and Linux assets to the tagged release.
 
+## Platform Signing and Trust
+
+This project is configured to sign all release platforms in CI:
+
+- macOS: Apple code signing + notarization
+- Windows: Authenticode code signing
+- Linux: GPG detached signatures for release artifacts (`.AppImage`, `.deb`)
+
+Required GitHub Actions secrets:
+
+- `MAC_CSC_LINK`
+- `MAC_CSC_KEY_PASSWORD`
+- `APPLE_API_KEY`
+- `APPLE_API_KEY_ID`
+- `APPLE_API_ISSUER`
+- `WINDOWS_CSC_LINK`
+- `WINDOWS_CSC_KEY_PASSWORD`
+- `LINUX_GPG_PRIVATE_KEY`
+- `LINUX_GPG_PASSPHRASE`
+
+Alternative Apple credentials are supported:
+
+- `APPLE_ID`
+- `APPLE_APP_SPECIFIC_PASSWORD`
+- `APPLE_TEAM_ID`
+
+If users still see macOS quarantine prompts on older builds, this temporary workaround can help when they trust the source:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/GroupUs.app
+```
+
 ## Support
 
 If GroupUs is useful to you, you can support me here:

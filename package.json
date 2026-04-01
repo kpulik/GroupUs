@@ -60,6 +60,9 @@
     ],
     "mac": {
       "icon": "build/icons/icon.icns",
+      "hardenedRuntime": true,
+      "notarize": true,
+      "forceCodeSigning": true,
       "category": "public.app-category.social-networking",
       "target": [
         "dmg",
@@ -68,6 +71,7 @@
     },
     "win": {
       "icon": "build/icons/icon.ico",
+      "forceCodeSigning": true,
       "target": [
         "nsis"
       ]
