@@ -33,65 +33,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and publish macOS artifacts (signed and notarized)
-        if: matrix.os == 'macos-latest'
+      - name: Build and publish artifacts
         run: npm run electron:build
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
-      - name: Build and publish Windows artifacts (signed)
-        if: matrix.os == 'windows-latest'
-        run: npm run electron:build
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
-
-      - name: Build and publish Linux artifacts
-        if: matrix.os == 'ubuntu-latest'
-        run: npm run electron:build
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Sign Linux artifacts and upload signatures
-        if: matrix.os == 'ubuntu-latest'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LINUX_GPG_PRIVATE_KEY: ${{ secrets.LINUX_GPG_PRIVATE_KEY }}
-          LINUX_GPG_PASSPHRASE: ${{ secrets.LINUX_GPG_PASSPHRASE }}
-        run: |
-          set -euo pipefail
-
-          if [[ -z "${LINUX_GPG_PRIVATE_KEY}" || -z "${LINUX_GPG_PASSPHRASE}" ]]; then
-            echo "Missing Linux signing secrets: LINUX_GPG_PRIVATE_KEY and/or LINUX_GPG_PASSPHRASE"
-            exit 1
-          fi
-
-          export GNUPGHOME="$RUNNER_TEMP/gnupg"
-          mkdir -p "$GNUPGHOME"
-          chmod 700 "$GNUPGHOME"
-          echo "$LINUX_GPG_PRIVATE_KEY" | gpg --batch --import
-
-          mapfile -t linux_artifacts < <(find release -maxdepth 1 -type f \( -name "*.AppImage" -o -name "*.deb" \))
-
-          if [[ ${#linux_artifacts[@]} -eq 0 ]]; then
-            echo "No Linux artifacts found to sign under release/"
-            exit 1
-          fi
-
-          for file in "${linux_artifacts[@]}"; do
-            gpg --batch --yes --pinentry-mode loopback \
-              --passphrase "$LINUX_GPG_PASSPHRASE" \
-              --armor --detach-sign "$file"
-          done
-
-          gh release upload "$GITHUB_REF_NAME" release/*.asc --clobber

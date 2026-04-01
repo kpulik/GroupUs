@@ -4,7 +4,7 @@
   <img src="build/icons/groupus-logo.svg" alt="GroupUs logo" width="180" />
 </p>
 
-GroupUs is an unofficial desktop client for GroupMe, built with Electron + React + Vite.
+GroupUs is an unofficial desktop client for GroupMe.
 
 ## Supported Platforms
 
@@ -37,93 +37,51 @@ GroupUs is an unofficial desktop client for GroupMe, built with Electron + React
 4. Copy your token.
 5. Paste it into GroupUs.
 
-## Development
+## Install from GitHub Releases
 
-1. Install dependencies:
+This app is distributed directly from GitHub Releases.
 
-```bash
-npm install
-```
+### macOS
 
-2. Start web dev server:
+1. Download the `.dmg` asset and open it.
+2. Drag `GroupUs.app` into `Applications`.
+3. If macOS warns that the app cannot be opened:
 
-```bash
-npm run dev
-```
+- Open `System Settings` -> `Privacy & Security`.
+- Under the blocked app message, click `Open Anyway`.
+- Confirm by clicking `Open`.
 
-3. Start Electron + Vite dev flow:
-
-```bash
-npm run electron:dev
-```
-
-## Build
-
-Build web + Electron bundles:
-
-```bash
-npm run build
-```
-
-Build desktop installers/artifacts with Electron Builder:
-
-```bash
-npm run electron:build
-```
-
-By default this targets:
-
-- macOS: `dmg`, `zip`
-- Windows: `nsis` (`.exe` installer)
-- Linux: `AppImage`, `deb`
-
-## Security Notes
-
-- `.env` and `.env.*` are gitignored by default.
-- `node_modules`, build output, and release artifacts are gitignored.
-- Access token is stored locally in app storage for sign-in.
-- Read/unread state is local to GroupUs UI state.
-
-## Release Workflow
-
-Recommended release process:
-
-1. Ensure working tree is clean and build passes.
-2. Bump version in `package.json`.
-3. Create a git tag (for example `v1.0.0`).
-4. Push commit + tag.
-5. GitHub Actions builds and publishes macOS, Windows, and Linux assets to the tagged release.
-
-## Platform Signing and Trust
-
-This project is configured to sign all release platforms in CI:
-
-- macOS: Apple code signing + notarization
-- Windows: Authenticode code signing
-- Linux: GPG detached signatures for release artifacts (`.AppImage`, `.deb`)
-
-Required GitHub Actions secrets:
-
-- `MAC_CSC_LINK`
-- `MAC_CSC_KEY_PASSWORD`
-- `APPLE_API_KEY`
-- `APPLE_API_KEY_ID`
-- `APPLE_API_ISSUER`
-- `WINDOWS_CSC_LINK`
-- `WINDOWS_CSC_KEY_PASSWORD`
-- `LINUX_GPG_PRIVATE_KEY`
-- `LINUX_GPG_PASSPHRASE`
-
-Alternative Apple credentials are supported:
-
-- `APPLE_ID`
-- `APPLE_APP_SPECIFIC_PASSWORD`
-- `APPLE_TEAM_ID`
-
-If users still see macOS quarantine prompts on older builds, this temporary workaround can help when they trust the source:
+4. If needed, remove quarantine flags in Terminal:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/GroupUs.app
+```
+
+### Windows
+
+1. Download the `.exe` installer from the release.
+2. Run the installer.
+3. If SmartScreen shows `Windows protected your PC`:
+
+- Click `More info`.
+- Click `Run anyway`.
+
+### Linux
+
+Use either the AppImage or deb package.
+
+AppImage:
+
+```bash
+chmod +x GroupUs-*.AppImage
+./GroupUs-*.AppImage
+```
+
+Debian/Ubuntu (`.deb`):
+
+```bash
+sudo dpkg -i GroupUs-*.deb
+sudo apt-get install -f
 ```
 
 ## Support
