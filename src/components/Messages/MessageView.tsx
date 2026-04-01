@@ -45,6 +45,325 @@ const PIN_REFERENCE_KEYS = new Set([
 ]);
 
 const PIN_PATH_HINTS = ['pin', 'pinned', 'message', 'target', 'subject', 'reply', 'guid'];
+const URL_PATTERN = '(?:https?:\\/\\/|www\\.|(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,})[^\\s<]*';
+const MAX_PREVIEWED_LINKS = 40;
+
+interface LinkPreviewMetadata {
+  title?: string;
+  description?: string;
+  imageUrl?: string | null;
+  siteName?: string;
+}
+
+interface LinkPreviewState {
+  status: 'loading' | 'ready' | 'error';
+  metadata?: LinkPreviewMetadata;
+}
+
+interface MicrolinkResponse {
+  status?: string;
+  data?: {
+    title?: string;
+    description?: string;
+    publisher?: string;
+    image?:
+      | string
+      | {
+          url?: string;
+        }
+      | null;
+  };
+}
+
+interface NoEmbedResponse {
+  title?: string;
+  provider_name?: string;
+  author_name?: string;
+  thumbnail_url?: string;
+  error?: string;
+}
+
+function getUrlMatcher(): RegExp {
+  return new RegExp(URL_PATTERN, 'gi');
+}
+
+function trimTrailingUrlPunctuation(rawUrl: string): string {
+  let candidate = rawUrl.trim();
+
+  while (/[.,!?;:'"]$/.test(candidate)) {
+    candidate = candidate.slice(0, -1);
+  }
+
+  while (candidate.endsWith(')')) {
+    const openParenthesesCount = (candidate.match(/\(/g) ?? []).length;
+    const closeParenthesesCount = (candidate.match(/\)/g) ?? []).length;
+
+    if (closeParenthesesCount <= openParenthesesCount) {
+      break;
+    }
+
+    candidate = candidate.slice(0, -1);
+  }
+
+  return candidate;
+}
+
+function normalizeMessageUrl(rawUrl: string): string | null {
+  const trimmedUrl = trimTrailingUrlPunctuation(rawUrl);
+  if (!trimmedUrl) {
+    return null;
+  }
+
+  if (trimmedUrl.includes('@')) {
+    return null;
+  }
+
+  const normalizedWithProtocol = /^https?:\/\//i.test(trimmedUrl)
+    ? trimmedUrl
+    : `https://${trimmedUrl}`;
+
+  if (!/^https?:\/\//i.test(normalizedWithProtocol)) {
+    return null;
+  }
+
+  try {
+    return new URL(normalizedWithProtocol).toString();
+  } catch {
+    return null;
+  }
+}
+
+function extractUrlsFromText(text: string): string[] {
+  const links = new Set<string>();
+  const matcher = getUrlMatcher();
+
+  for (const match of text.matchAll(matcher)) {
+    const matchedText = match[0];
+    if (!matchedText) {
+      continue;
+    }
+
+    const normalizedUrl = normalizeMessageUrl(matchedText);
+    if (normalizedUrl) {
+      links.add(normalizedUrl);
+    }
+  }
+
+  return Array.from(links);
+}
+
+function extractMessageLinks(message: Message): string[] {
+  const links = new Set<string>(extractUrlsFromText(message.text ?? ''));
+
+  for (const attachment of message.attachments) {
+    const attachmentType = attachment.type.toLowerCase();
+    const shouldIncludeAttachmentUrls =
+      attachmentType !== 'image' &&
+      (attachmentType.includes('link') || attachmentType.includes('url') || attachmentType.includes('article'));
+
+    if (!shouldIncludeAttachmentUrls) {
+      continue;
+    }
+
+    const attachmentUrls = [attachment.url, attachment.preview_url];
+    for (const attachmentUrl of attachmentUrls) {
+      if (!attachmentUrl) {
+        continue;
+      }
+
+      const normalizedUrl = normalizeMessageUrl(attachmentUrl);
+      if (normalizedUrl) {
+        links.add(normalizedUrl);
+      }
+    }
+  }
+
+  return Array.from(links);
+}
+
+function getReadableUrl(url: string): string {
+  try {
+    const parsedUrl = new URL(url);
+    const normalizedPath = parsedUrl.pathname === '/' ? '' : parsedUrl.pathname;
+    return `${parsedUrl.hostname}${normalizedPath}`;
+  } catch {
+    return url;
+  }
+}
+
+function getFallbackSiteName(url: string): string {
+  try {
+    const parsedUrl = new URL(url);
+    return parsedUrl.hostname.replace(/^www\./i, '');
+  } catch {
+    return 'Link';
+  }
+}
+
+function getFallbackTitle(url: string): string {
+  try {
+    const parsedUrl = new URL(url);
+    const pathnameSegments = parsedUrl.pathname.split('/').filter(Boolean);
+    const lastSegment = pathnameSegments[pathnameSegments.length - 1];
+    if (!lastSegment) {
+      return getFallbackSiteName(url);
+    }
+
+    const decodedSegment = decodeURIComponent(lastSegment).replace(/[-_]+/g, ' ').trim();
+    return decodedSegment || getFallbackSiteName(url);
+  } catch {
+    return 'Shared link';
+  }
+}
+
+function getFallbackDescription(url: string): string | undefined {
+  try {
+    const parsedUrl = new URL(url);
+    const path = parsedUrl.pathname === '/' ? '' : parsedUrl.pathname;
+    return path ? `${parsedUrl.hostname}${path}` : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function getMicrolinkImageUrl(
+  image:
+    | string
+    | {
+        url?: string;
+      }
+    | null
+    | undefined,
+): string | null {
+  if (!image) {
+    return null;
+  }
+
+  if (typeof image === 'string') {
+    return normalizeImageUrl(image);
+  }
+
+  return normalizeImageUrl(image.url);
+}
+
+async function fetchLinkPreviewMetadata(url: string): Promise<LinkPreviewMetadata | null> {
+  try {
+    const microlinkResponse = await fetch(
+      `https://api.microlink.io?url=${encodeURIComponent(url)}&screenshot=false&palette=false`,
+    );
+
+    if (microlinkResponse.ok) {
+      const microlinkPayload = (await microlinkResponse.json()) as MicrolinkResponse;
+      if (microlinkPayload.status === 'success' && microlinkPayload.data) {
+        const metadata: LinkPreviewMetadata = {
+          title: microlinkPayload.data.title,
+          description: microlinkPayload.data.description,
+          siteName: microlinkPayload.data.publisher,
+          imageUrl: getMicrolinkImageUrl(microlinkPayload.data.image),
+        };
+
+        if (metadata.title || metadata.description || metadata.siteName || metadata.imageUrl) {
+          return metadata;
+        }
+      }
+    }
+  } catch {
+    // Best-effort metadata loading, fallback preview is still rendered.
+  }
+
+  try {
+    const noEmbedResponse = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(url)}`);
+    if (!noEmbedResponse.ok) {
+      return null;
+    }
+
+    const noEmbedPayload = (await noEmbedResponse.json()) as NoEmbedResponse;
+    if (noEmbedPayload.error) {
+      return null;
+    }
+
+    const metadata: LinkPreviewMetadata = {
+      title: noEmbedPayload.title,
+      description: noEmbedPayload.author_name ? `By ${noEmbedPayload.author_name}` : undefined,
+      siteName: noEmbedPayload.provider_name,
+      imageUrl: normalizeImageUrl(noEmbedPayload.thumbnail_url),
+    };
+
+    if (metadata.title || metadata.description || metadata.siteName || metadata.imageUrl) {
+      return metadata;
+    }
+  } catch {
+    // Best-effort metadata loading, fallback preview is still rendered.
+  }
+
+  return null;
+}
+
+function renderMessageTextWithLinks(text: string, isCurrentUser: boolean) {
+  const linkClassName = isCurrentUser
+    ? 'underline text-blue-50 hover:text-white break-all'
+    : 'underline text-blue-600 dark:text-blue-300 hover:text-blue-700 dark:hover:text-blue-200 break-all';
+
+  const lines = text.split('\n');
+
+  return lines.map((line, lineIndex) => {
+    const lineParts: Array<string | JSX.Element> = [];
+    const matcher = getUrlMatcher();
+    let cursor = 0;
+    let matchIndex = 0;
+
+    for (const match of line.matchAll(matcher)) {
+      const matchedText = match[0];
+      const startIndex = match.index;
+
+      if (!matchedText || typeof startIndex !== 'number') {
+        continue;
+      }
+
+      if (startIndex > cursor) {
+        lineParts.push(line.slice(cursor, startIndex));
+      }
+
+      const trimmedText = trimTrailingUrlPunctuation(matchedText);
+      const trailingCharacters = matchedText.slice(trimmedText.length);
+      const normalizedUrl = normalizeMessageUrl(trimmedText);
+
+      if (normalizedUrl) {
+        lineParts.push(
+          <a
+            key={`line-${lineIndex}-url-${matchIndex}`}
+            href={normalizedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={linkClassName}
+          >
+            {trimmedText}
+          </a>,
+        );
+      } else {
+        lineParts.push(matchedText);
+      }
+
+      if (trailingCharacters) {
+        lineParts.push(trailingCharacters);
+      }
+
+      cursor = startIndex + matchedText.length;
+      matchIndex += 1;
+    }
+
+    if (cursor < line.length) {
+      lineParts.push(line.slice(cursor));
+    }
+
+    return (
+      <span key={`message-line-${lineIndex}`}>
+        {lineParts.length > 0 ? lineParts : line}
+        {lineIndex < lines.length - 1 ? <br /> : null}
+      </span>
+    );
+  });
+}
 
 function isPinNotificationMessage(message: Message): boolean {
   return /pinned a message/i.test(message.text);
@@ -202,11 +521,13 @@ export function MessageView({
   const [pinnedMessagesError, setPinnedMessagesError] = useState<string | null>(null);
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMessageEntry[]>([]);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [linkPreviewCache, setLinkPreviewCache] = useState<Record<string, LinkPreviewState>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const fullHistoryMessagesRef = useRef<Message[] | null>(null);
   const groupMenuRef = useRef<HTMLDivElement>(null);
   const groupActionsButtonRef = useRef<HTMLButtonElement>(null);
+  const activeConversationIdRef = useRef(activeConversation.id);
   const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : null;
   const isGroupConversation = activeConversation.type !== 'chat';
   const canLikeMessages = activeConversation.type !== 'chat';
@@ -243,6 +564,35 @@ export function MessageView({
 
     return groupMembers.filter((member) => member.nickname.toLowerCase().includes(normalizedSearch));
   }, [groupMembers, memberSearch]);
+
+  const messageLinksById = useMemo(() => {
+    const linksByMessageId = new Map<string, string[]>();
+
+    for (const message of messages) {
+      const links = extractMessageLinks(message);
+      if (links.length > 0) {
+        linksByMessageId.set(message.id, links);
+      }
+    }
+
+    return linksByMessageId;
+  }, [messages]);
+
+  const previewUrls = useMemo(() => {
+    const uniqueUrls = new Set<string>();
+
+    for (const links of messageLinksById.values()) {
+      for (const link of links) {
+        if (uniqueUrls.size >= MAX_PREVIEWED_LINKS) {
+          return Array.from(uniqueUrls);
+        }
+
+        uniqueUrls.add(link);
+      }
+    }
+
+    return Array.from(uniqueUrls);
+  }, [messageLinksById]);
 
   const groupMenuItems: Array<{
     label: string;
@@ -442,12 +792,68 @@ export function MessageView({
   );
 
   useEffect(() => {
+    activeConversationIdRef.current = activeConversation.id;
+  }, [activeConversation.id]);
+
+  useEffect(() => {
+    if (previewUrls.length === 0) {
+      return;
+    }
+
+    const urlsToLoad = previewUrls.filter((url) => !linkPreviewCache[url]);
+    if (urlsToLoad.length === 0) {
+      return;
+    }
+
+    setLinkPreviewCache((currentCache) => {
+      const nextCache = { ...currentCache };
+      for (const url of urlsToLoad) {
+        if (!nextCache[url]) {
+          nextCache[url] = { status: 'loading' };
+        }
+      }
+      return nextCache;
+    });
+
+    const conversationId = activeConversation.id;
+    for (const url of urlsToLoad) {
+      void fetchLinkPreviewMetadata(url)
+        .then((metadata) => {
+          if (activeConversationIdRef.current !== conversationId) {
+            return;
+          }
+
+          setLinkPreviewCache((currentCache) => ({
+            ...currentCache,
+            [url]: {
+              status: metadata ? 'ready' : 'error',
+              metadata: metadata ?? undefined,
+            },
+          }));
+        })
+        .catch(() => {
+          if (activeConversationIdRef.current !== conversationId) {
+            return;
+          }
+
+          setLinkPreviewCache((currentCache) => ({
+            ...currentCache,
+            [url]: {
+              status: 'error',
+            },
+          }));
+        });
+    }
+  }, [previewUrls, linkPreviewCache, activeConversation.id]);
+
+  useEffect(() => {
     setMessages([]);
     setPinnedMessages([]);
     setPinnedMessagesError(null);
     setHasLoadedPinnedMessages(false);
     setLoadingPinnedMessages(false);
     setHighlightedMessageId(null);
+    setLinkPreviewCache({});
     setShowInfoCard(false);
     setShowPinnedPanel(false);
     setShowGallery(false);
@@ -879,6 +1285,7 @@ export function MessageView({
           messages.map((message) => {
             const isCurrentUser = message.user_id === currentUserId;
             const isLiked = message.favorited_by.includes(currentUserId);
+            const messageLinks = messageLinksById.get(message.id) ?? [];
 
             return (
               <div
@@ -915,7 +1322,83 @@ export function MessageView({
                     {!isCurrentUser && (
                       <p className="text-xs font-semibold mb-1 text-gray-600 dark:text-gray-300">{message.name}</p>
                     )}
-                    <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
+                    {message.text ? (
+                      <p className="text-sm whitespace-pre-wrap break-words">
+                        {renderMessageTextWithLinks(message.text, isCurrentUser)}
+                      </p>
+                    ) : null}
+                    {messageLinks.map((messageLink) => {
+                      const previewState = linkPreviewCache[messageLink];
+                      const previewTitle = previewState?.metadata?.title ?? getFallbackTitle(messageLink);
+                      const previewDescription =
+                        previewState?.metadata?.description ?? getFallbackDescription(messageLink);
+                      const previewSiteName =
+                        previewState?.metadata?.siteName ?? getFallbackSiteName(messageLink);
+                      const previewImageUrl = normalizeImageUrl(previewState?.metadata?.imageUrl);
+
+                      return (
+                        <a
+                          key={`${message.id}-${messageLink}`}
+                          href={messageLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`mt-2 block rounded-xl border overflow-hidden transition-colors ${
+                            isCurrentUser
+                              ? 'bg-blue-400/35 border-blue-300/70 hover:bg-blue-400/50'
+                              : 'bg-white/75 dark:bg-gray-900/70 border-gray-200 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-900'
+                          }`}
+                        >
+                          {previewImageUrl && (
+                            <img
+                              src={previewImageUrl}
+                              alt={previewTitle}
+                              className="w-full max-h-40 object-cover border-b border-black/10 dark:border-white/10"
+                            />
+                          )}
+                          <div className="px-3 py-2">
+                            <p
+                              className={`text-[10px] uppercase tracking-wide font-semibold ${
+                                isCurrentUser ? 'text-blue-100/90' : 'text-gray-500 dark:text-gray-400'
+                              }`}
+                            >
+                              {previewSiteName}
+                            </p>
+                            <p
+                              className={`text-sm font-semibold leading-snug ${
+                                isCurrentUser ? 'text-white' : 'text-gray-900 dark:text-gray-100'
+                              }`}
+                            >
+                              {previewTitle}
+                            </p>
+                            {previewDescription && (
+                              <p
+                                className={`mt-1 text-xs leading-snug ${
+                                  isCurrentUser ? 'text-blue-50/90' : 'text-gray-600 dark:text-gray-300'
+                                }`}
+                              >
+                                {previewDescription}
+                              </p>
+                            )}
+                            {previewState?.status === 'loading' && (
+                              <p
+                                className={`mt-1 text-[11px] ${
+                                  isCurrentUser ? 'text-blue-100/80' : 'text-gray-500 dark:text-gray-400'
+                                }`}
+                              >
+                                Loading preview...
+                              </p>
+                            )}
+                            <p
+                              className={`mt-1 text-[11px] truncate ${
+                                isCurrentUser ? 'text-blue-100' : 'text-blue-600 dark:text-blue-300'
+                              }`}
+                            >
+                              {getReadableUrl(messageLink)}
+                            </p>
+                          </div>
+                        </a>
+                      );
+                    })}
                     {message.attachments.map((attachment, idx) => (
                       <div key={idx} className="mt-2">
                         {attachment.type === 'image' && (
