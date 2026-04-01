@@ -96,7 +96,9 @@ If GroupUs is useful to you, you can support me here:
 
 - Buy Me a Coffee: [https://buymeacoffee.com/kpulik](https://buymeacoffee.com/kpulik)
 
-[![Buy Me a Coffee QR code](bmc_qr.png)](https://buymeacoffee.com/kpulik)
+<a href="https://buymeacoffee.com/kpulik">
+  <img src="bmc_qr.png" alt="Buy Me a Coffee QR code" width="320" />
+</a>
 
 ## Notes
 
