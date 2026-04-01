@@ -17,6 +17,9 @@ interface UpdateStatusPayload {
 
 contextBridge.exposeInMainWorld('electron', {
   platform: process.platform,
+  app: {
+    getVersion: () => ipcRenderer.invoke('app:get-version'),
+  },
   windows: {
     openSettings: () => ipcRenderer.invoke('window:open-settings'),
   },

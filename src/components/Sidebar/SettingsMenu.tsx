@@ -87,9 +87,11 @@ export function SettingsMenu({
         return {
           icon: Info,
           iconClassName: 'text-blue-500',
-          message: updateStatus.version
-            ? `Update v${updateStatus.version} found. Downloading now...`
-            : 'Update found. Downloading now...',
+          message:
+            updateStatus.message ??
+            (updateStatus.version
+              ? `Update v${updateStatus.version} found. Downloading now...`
+              : 'Update found. Downloading now...'),
         };
       case 'downloading':
         return {
@@ -105,15 +107,17 @@ export function SettingsMenu({
         return {
           icon: CheckCircle2,
           iconClassName: 'text-emerald-500',
-          message: updateStatus.version
-            ? `Update v${updateStatus.version} is ready to install.`
-            : 'Update is ready to install.',
+          message:
+            updateStatus.message ??
+            (updateStatus.version
+              ? `Update v${updateStatus.version} is ready to install.`
+              : 'Update is ready to install.'),
         };
       case 'not-available':
         return {
           icon: CheckCircle2,
           iconClassName: 'text-emerald-500',
-          message: 'You already have the latest version installed.',
+          message: updateStatus.message ?? 'You already have the latest version installed.',
         };
       case 'installing':
         return {
@@ -139,6 +143,7 @@ export function SettingsMenu({
 
   useEffect(() => {
     if (
+      updateStatus.state === 'available' ||
       updateStatus.state === 'not-available' ||
       updateStatus.state === 'downloaded' ||
       updateStatus.state === 'error'

@@ -214,6 +214,10 @@ function createSettingsWindow() {
 }
 
 app.whenReady().then(() => {
+  ipcMain.handle('app:get-version', () => {
+    return app.getVersion();
+  });
+
   ipcMain.handle('updates:check', async () => {
     if (!app.isPackaged) {
       sendUpdateStatus({

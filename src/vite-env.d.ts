@@ -17,6 +17,9 @@ interface UpdateStatusPayload {
 
 interface ElectronBridge {
 	platform: string;
+	app?: {
+		getVersion: () => Promise<string>;
+	};
 	windows?: {
 		openSettings: () => Promise<void>;
 	};

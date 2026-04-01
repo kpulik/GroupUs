@@ -23,6 +23,11 @@ const APPEARANCE_STORAGE_KEY = 'groupus_appearance_preference';
 const COLOR_THEME_STORAGE_KEY = 'groupus_color_theme';
 const CUSTOM_ACCENT_COLOR_STORAGE_KEY = 'groupus_custom_accent_color';
 const DARK_SURFACE_STORAGE_KEY = 'groupus_dark_surface_style';
+const LATEST_RELEASE_API_URL = 'https://api.github.com/repos/kpulik/GroupUs/releases/latest';
+
+interface LatestReleasePayload {
+  tag_name?: string;
+}
 
 interface AccentPalette {
   accent400: string;
@@ -123,6 +128,48 @@ function isSameReadState(
     firstState.lastReadUpdatedAt === secondState.lastReadUpdatedAt &&
     firstState.lastReadMessageCount === secondState.lastReadMessageCount
   );
+}
+
+function normalizeVersionTag(version: string | null | undefined): string | null {
+  if (!version) {
+    return null;
+  }
+
+  const trimmedVersion = version.trim();
+  if (!trimmedVersion) {
+    return null;
+  }
+
+  const withoutPrefix = trimmedVersion.replace(/^v/i, '');
+  const stablePart = withoutPrefix.split('-')[0];
+
+  return stablePart || null;
+}
+
+function parseSemverParts(version: string): number[] {
+  return version
+    .split('.')
+    .map((segment) => Number.parseInt(segment, 10))
+    .map((segment) => (Number.isFinite(segment) ? segment : 0));
+}
+
+function compareSemverVersions(leftVersion: string, rightVersion: string): number {
+  const leftParts = parseSemverParts(leftVersion);
+  const rightParts = parseSemverParts(rightVersion);
+  const maxLength = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < maxLength; index += 1) {
+    const leftPart = leftParts[index] ?? 0;
+    const rightPart = rightParts[index] ?? 0;
+
+    if (leftPart === rightPart) {
+      continue;
+    }
+
+    return leftPart > rightPart ? 1 : -1;
+  }
+
+  return 0;
 }
 
 function App() {
@@ -467,18 +514,59 @@ function App() {
 
   const handleCheckForUpdates = async () => {
     const updatesBridge = window.electron?.updates;
-    if (!updatesBridge?.check) {
-      setUpdateStatus({
-        state: 'error',
-        message: 'Updater is not available in this environment.',
-      });
-      return;
-    }
 
     setUpdateStatus({ state: 'checking', message: 'Checking for updates...' });
 
+    if (updatesBridge?.check) {
+      try {
+        await updatesBridge.check();
+      } catch (error) {
+        setUpdateStatus({
+          state: 'error',
+          message: error instanceof Error ? error.message : 'Failed to check updates',
+        });
+      }
+
+      return;
+    }
+
     try {
-      await updatesBridge.check();
+      const releaseResponse = await fetch(LATEST_RELEASE_API_URL, {
+        headers: {
+          Accept: 'application/vnd.github+json',
+        },
+      });
+
+      if (!releaseResponse.ok) {
+        throw new Error(`Unable to check latest release (${releaseResponse.status}).`);
+      }
+
+      const releasePayload = (await releaseResponse.json()) as LatestReleasePayload;
+      const latestVersion = normalizeVersionTag(releasePayload.tag_name);
+
+      if (!latestVersion) {
+        throw new Error('Latest release version could not be determined.');
+      }
+
+      const appVersionRaw = await window.electron?.app?.getVersion?.();
+      const installedVersion = normalizeVersionTag(appVersionRaw ?? null);
+
+      if (installedVersion && compareSemverVersions(installedVersion, latestVersion) >= 0) {
+        setUpdateStatus({
+          state: 'not-available',
+          version: installedVersion,
+          message: `You already have the latest version installed (v${installedVersion}).`,
+        });
+        return;
+      }
+
+      setUpdateStatus({
+        state: 'available',
+        version: latestVersion,
+        message: installedVersion
+          ? `Current version: v${installedVersion}. Latest available: v${latestVersion}.`
+          : `Latest available version: v${latestVersion}.`,
+      });
     } catch (error) {
       setUpdateStatus({
         state: 'error',
@@ -490,10 +578,15 @@ function App() {
   const handleInstallUpdate = async () => {
     const updatesBridge = window.electron?.updates;
     if (!updatesBridge?.install) {
-      setUpdateStatus({
-        state: 'error',
-        message: 'Updater is not available in this environment.',
-      });
+      setUpdateStatus((currentStatus) => ({
+        state: 'available',
+        version: currentStatus.version,
+        message: currentStatus.version
+          ? `In-app install is unavailable. Opening GitHub release for v${currentStatus.version}.`
+          : 'In-app install is unavailable. Opening the latest GitHub release.',
+      }));
+
+      await handleOpenLatestRelease();
       return;
     }
 
