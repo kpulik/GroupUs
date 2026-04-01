@@ -1,18 +1,25 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Check,
+  CheckCircle2,
   Clipboard,
   Coffee,
   Eye,
   EyeOff,
+  ExternalLink,
+  Info,
   Laptop,
+  Loader2,
+  LucideIcon,
   Palette,
   Moon,
   LogOut,
+  Download,
   RefreshCw,
   Settings2,
   Sun,
   X,
+  AlertTriangle,
 } from 'lucide-react';
 import type { AppearancePreference, ColorTheme, DarkSurfaceStyle } from '../../App';
 import buyMeACoffeeQr from '../../assets/support/buy-me-a-coffee-qr.png';
@@ -27,6 +34,7 @@ interface SettingsMenuProps {
   onClose: () => void;
   onCheckForUpdates: () => void;
   onInstallUpdate: () => void;
+  onOpenLatestRelease: () => void;
   onSignOut: () => void;
   onChangeAppearance: (nextPreference: AppearancePreference) => void;
   onChangeColorTheme: (nextTheme: ColorTheme) => void;
@@ -45,6 +53,7 @@ export function SettingsMenu({
   onClose,
   onCheckForUpdates,
   onInstallUpdate,
+  onOpenLatestRelease,
   onSignOut,
   onChangeAppearance,
   onChangeColorTheme,
@@ -54,11 +63,91 @@ export function SettingsMenu({
 }: SettingsMenuProps) {
   const [tokenVisible, setTokenVisible] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
+  const [lastUpdateCheckAt, setLastUpdateCheckAt] = useState<Date | null>(null);
 
-  const updateMessage =
-    updateStatus.state === 'downloading'
-      ? `Downloading update (${Math.round(updateStatus.progress ?? 0)}%)`
-      : updateStatus.message ?? 'Automatic checks run every week in packaged builds.';
+  const isCheckingUpdates = updateStatus.state === 'checking';
+  const isDownloadingUpdate = updateStatus.state === 'downloading';
+  const isInstallingUpdate = updateStatus.state === 'installing';
+  const canCheckForUpdates = !isCheckingUpdates && !isInstallingUpdate;
+  const canInstallUpdate = updateStatus.state === 'downloaded' && !isInstallingUpdate;
+
+  const updateStatePresentation = useMemo<{
+    icon: LucideIcon;
+    iconClassName: string;
+    message: string;
+  }>(() => {
+    switch (updateStatus.state) {
+      case 'checking':
+        return {
+          icon: Loader2,
+          iconClassName: 'text-blue-500 animate-spin',
+          message: 'Checking for updates...',
+        };
+      case 'available':
+        return {
+          icon: Info,
+          iconClassName: 'text-blue-500',
+          message: updateStatus.version
+            ? `Update v${updateStatus.version} found. Downloading now...`
+            : 'Update found. Downloading now...',
+        };
+      case 'downloading':
+        return {
+          icon: Download,
+          iconClassName: 'text-blue-500',
+          message: `Downloading update${
+            typeof updateStatus.progress === 'number'
+              ? ` (${Math.round(updateStatus.progress)}%)`
+              : '...'
+          }`,
+        };
+      case 'downloaded':
+        return {
+          icon: CheckCircle2,
+          iconClassName: 'text-emerald-500',
+          message: updateStatus.version
+            ? `Update v${updateStatus.version} is ready to install.`
+            : 'Update is ready to install.',
+        };
+      case 'not-available':
+        return {
+          icon: CheckCircle2,
+          iconClassName: 'text-emerald-500',
+          message: 'You already have the latest version installed.',
+        };
+      case 'installing':
+        return {
+          icon: Loader2,
+          iconClassName: 'text-blue-500 animate-spin',
+          message: updateStatus.message ?? 'Installing update and restarting...',
+        };
+      case 'error':
+        return {
+          icon: AlertTriangle,
+          iconClassName: 'text-rose-500',
+          message: updateStatus.message ?? 'Update check failed. Try again.',
+        };
+      case 'idle':
+      default:
+        return {
+          icon: Info,
+          iconClassName: 'text-gray-500 dark:text-gray-300',
+          message: updateStatus.message ?? 'Click the refresh icon to check for updates.',
+        };
+    }
+  }, [updateStatus]);
+
+  useEffect(() => {
+    if (
+      updateStatus.state === 'not-available' ||
+      updateStatus.state === 'downloaded' ||
+      updateStatus.state === 'error'
+    ) {
+      setLastUpdateCheckAt(new Date());
+    }
+  }, [updateStatus.state]);
+
+  const UpdateStateIcon = updateStatePresentation.icon;
 
   const themeOptions: Array<{ key: ColorTheme; label: string; swatchHex?: string }> = [
     { key: 'blue', label: 'Ocean', swatchHex: '#3b82f6' },
@@ -264,20 +353,59 @@ export function SettingsMenu({
               <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">App Updates</h3>
               <button
                 onClick={onCheckForUpdates}
-                className="p-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800"
+                disabled={!canCheckForUpdates}
+                className="p-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Check for updates"
               >
-                <RefreshCw className="w-4 h-4 text-gray-700 dark:text-gray-200" />
+                <RefreshCw
+                  className={`w-4 h-4 text-gray-700 dark:text-gray-200 ${
+                    isCheckingUpdates ? 'animate-spin' : ''
+                  }`}
+                />
               </button>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-300">{updateMessage}</p>
-            {updateStatus.state === 'downloaded' && (
+
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/70 px-3 py-2">
+              <div className="flex items-start gap-2">
+                <UpdateStateIcon className={`w-4 h-4 mt-0.5 ${updateStatePresentation.iconClassName}`} />
+                <div className="min-w-0">
+                  <p className="text-sm text-gray-700 dark:text-gray-200">{updateStatePresentation.message}</p>
+                  {lastUpdateCheckAt && (
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Last checked: {lastUpdateCheckAt.toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {canInstallUpdate && (
               <button
                 onClick={onInstallUpdate}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
               >
                 Install update and restart
               </button>
+            )}
+
+            {isInstallingUpdate && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                The app will close automatically to complete installation.
+              </p>
+            )}
+
+            <button
+              onClick={onOpenLatestRelease}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Get latest from GitHub
+            </button>
+
+            {isDownloadingUpdate && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Download is in progress. Install becomes available once complete.
+              </p>
             )}
           </section>
 

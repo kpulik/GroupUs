@@ -466,8 +466,19 @@ function App() {
   };
 
   const handleCheckForUpdates = async () => {
+    const updatesBridge = window.electron?.updates;
+    if (!updatesBridge?.check) {
+      setUpdateStatus({
+        state: 'error',
+        message: 'Updater is not available in this environment.',
+      });
+      return;
+    }
+
+    setUpdateStatus({ state: 'checking', message: 'Checking for updates...' });
+
     try {
-      await window.electron?.updates?.check();
+      await updatesBridge.check();
     } catch (error) {
       setUpdateStatus({
         state: 'error',
@@ -477,12 +488,47 @@ function App() {
   };
 
   const handleInstallUpdate = async () => {
+    const updatesBridge = window.electron?.updates;
+    if (!updatesBridge?.install) {
+      setUpdateStatus({
+        state: 'error',
+        message: 'Updater is not available in this environment.',
+      });
+      return;
+    }
+
+    setUpdateStatus((currentStatus) => ({
+      ...currentStatus,
+      state: 'installing',
+      message: currentStatus.version
+        ? `Installing update v${currentStatus.version} and restarting...`
+        : 'Installing update and restarting...',
+    }));
+
     try {
-      await window.electron?.updates?.install();
+      await updatesBridge.install();
     } catch (error) {
       setUpdateStatus({
         state: 'error',
         message: error instanceof Error ? error.message : 'Failed to install update',
+      });
+    }
+  };
+
+  const handleOpenLatestRelease = async () => {
+    const updatesBridge = window.electron?.updates;
+
+    if (!updatesBridge?.openLatestRelease) {
+      window.open('https://github.com/kpulik/GroupUs/releases/latest', '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    try {
+      await updatesBridge.openLatestRelease();
+    } catch (error) {
+      setUpdateStatus({
+        state: 'error',
+        message: error instanceof Error ? error.message : 'Failed to open the latest release page',
       });
     }
   };
@@ -753,6 +799,7 @@ function App() {
         onClose={() => window.close()}
         onCheckForUpdates={handleCheckForUpdates}
         onInstallUpdate={handleInstallUpdate}
+        onOpenLatestRelease={handleOpenLatestRelease}
         onSignOut={() => {
           handleSignOut();
           window.close();
@@ -820,6 +867,7 @@ function App() {
           onClose={() => setShowInlineSettingsFallback(false)}
           onCheckForUpdates={handleCheckForUpdates}
           onInstallUpdate={handleInstallUpdate}
+          onOpenLatestRelease={handleOpenLatestRelease}
           onSignOut={() => {
             handleSignOut();
             setShowInlineSettingsFallback(false);

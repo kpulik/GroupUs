@@ -12,7 +12,15 @@ const shouldOpenDevTools =
   process.env.ELECTRON_OPEN_DEVTOOLS === '1' || process.env.ELECTRON_OPEN_DEVTOOLS === 'true';
 
 interface UpdateStatusPayload {
-  state: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+  state:
+    | 'idle'
+    | 'checking'
+    | 'available'
+    | 'not-available'
+    | 'downloading'
+    | 'downloaded'
+    | 'installing'
+    | 'error';
   message?: string;
   progress?: number;
   version?: string;
@@ -21,6 +29,8 @@ interface UpdateStatusPayload {
 let mainWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 let updateCheckInterval: ReturnType<typeof setInterval> | null = null;
+let updateDownloadReadyVersion: string | null = null;
+let isUpdateCheckInProgress = false;
 
 function sendUpdateStatus(payload: UpdateStatusPayload) {
   for (const windowInstance of BrowserWindow.getAllWindows()) {
@@ -41,10 +51,12 @@ function initializeAutoUpdates() {
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('checking-for-update', () => {
+    isUpdateCheckInProgress = true;
     sendUpdateStatus({ state: 'checking', message: 'Checking for updates...' });
   });
 
   autoUpdater.on('update-available', (info) => {
+    updateDownloadReadyVersion = null;
     sendUpdateStatus({
       state: 'available',
       message: `Update available: v${info.version}. Downloading now...`,
@@ -53,6 +65,7 @@ function initializeAutoUpdates() {
   });
 
   autoUpdater.on('update-not-available', () => {
+    isUpdateCheckInProgress = false;
     sendUpdateStatus({ state: 'not-available', message: 'You are on the latest version.' });
   });
 
@@ -65,6 +78,8 @@ function initializeAutoUpdates() {
   });
 
   autoUpdater.on('update-downloaded', (info) => {
+    isUpdateCheckInProgress = false;
+    updateDownloadReadyVersion = info.version;
     sendUpdateStatus({
       state: 'downloaded',
       message: `Update v${info.version} ready to install.`,
@@ -73,6 +88,7 @@ function initializeAutoUpdates() {
   });
 
   autoUpdater.on('error', (error) => {
+    isUpdateCheckInProgress = false;
     sendUpdateStatus({
       state: 'error',
       message: error.message,
@@ -207,7 +223,20 @@ app.whenReady().then(() => {
       return;
     }
 
-    await autoUpdater.checkForUpdates();
+    if (isUpdateCheckInProgress) {
+      sendUpdateStatus({ state: 'checking', message: 'Update check already in progress...' });
+      return;
+    }
+
+    isUpdateCheckInProgress = true;
+    sendUpdateStatus({ state: 'checking', message: 'Checking for updates...' });
+
+    try {
+      await autoUpdater.checkForUpdates();
+    } catch (error) {
+      isUpdateCheckInProgress = false;
+      throw error;
+    }
   });
 
   ipcMain.handle('updates:install', async () => {
@@ -219,7 +248,27 @@ app.whenReady().then(() => {
       return;
     }
 
-    autoUpdater.quitAndInstall();
+    if (!updateDownloadReadyVersion) {
+      sendUpdateStatus({
+        state: 'error',
+        message: 'No downloaded update is ready yet. Check for updates and wait for the download to finish.',
+      });
+      return;
+    }
+
+    sendUpdateStatus({
+      state: 'installing',
+      message: `Installing update v${updateDownloadReadyVersion} and restarting...`,
+      version: updateDownloadReadyVersion,
+    });
+
+    setImmediate(() => {
+      autoUpdater.quitAndInstall();
+    });
+  });
+
+  ipcMain.handle('updates:open-latest-release', async () => {
+    await shell.openExternal('https://github.com/kpulik/GroupUs/releases/latest');
   });
 
   ipcMain.handle('window:open-settings', () => {
