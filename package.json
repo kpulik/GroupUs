@@ -1,7 +1,12 @@
 {
   "name": "groupme-mac-client",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "description": "Unofficial cross-platform GroupMe desktop client built with Electron and React.",
+  "author": {
+    "name": "Kevin Pulikkottil",
+    "email": "kpulik@users.noreply.github.com"
+  },
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
