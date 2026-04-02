@@ -37,6 +37,7 @@ interface ElectronBridge {
 	platform: string;
 	app?: {
 		getVersion: () => Promise<string>;
+		setBadgeCount: (count: number) => Promise<void>;
 	};
 	windows?: {
 		openSettings: () => Promise<void>;

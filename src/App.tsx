@@ -823,6 +823,7 @@ function App() {
     setOauthStatusMessage(null);
     setIsOAuthAuthenticating(false);
     setUpdateStatus({ state: 'idle' });
+    window.electron?.app?.setBadgeCount(0);
   };
 
   const handleToggleConversationMute = (conversationId: string) => {
@@ -1124,6 +1125,14 @@ function App() {
 
     return counts;
   }, [conversations, conversationReadState]);
+
+  const totalUnreadCount = useMemo(() => {
+    return Object.values(unreadCountByConversationId).reduce((sum, count) => sum + count, 0);
+  }, [unreadCountByConversationId]);
+
+  useEffect(() => {
+    window.electron?.app?.setBadgeCount(totalUnreadCount);
+  }, [totalUnreadCount]);
 
   const handleSelectSubgroupForGroup = (groupConversationId: string, conversationId: string) => {
     setSelectedSubgroupByGroup((previousSelections) => ({

@@ -294,6 +294,15 @@ app.whenReady().then(() => {
     return app.getVersion();
   });
 
+  ipcMain.handle('app:set-badge-count', (_event, count: number) => {
+    const safeCount = Math.max(0, Math.round(count));
+    app.setBadgeCount(safeCount);
+
+    if ((process.platform === 'win32' || process.platform === 'linux') && mainWindow) {
+      mainWindow.setTitle(safeCount > 0 ? `(${safeCount}) GroupUs` : 'GroupUs');
+    }
+  });
+
   ipcMain.handle('auth:start-oauth', async (_event, payload: OAuthStartPayload): Promise<OAuthStartResult> => {
     if (isOAuthFlowInProgress) {
       throw new Error('An OAuth sign-in flow is already in progress.');

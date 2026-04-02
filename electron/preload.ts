@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('electron', {
   platform: process.platform,
   app: {
     getVersion: () => ipcRenderer.invoke('app:get-version'),
+    setBadgeCount: (count: number) => ipcRenderer.invoke('app:set-badge-count', count),
   },
   windows: {
     openSettings: () => ipcRenderer.invoke('window:open-settings'),
