@@ -209,16 +209,28 @@ export function GroupsList({
                           : 'hover:bg-white/60 dark:hover:bg-gray-800/70 hover:backdrop-blur-xl'
                       }`}
                     >
-                      <Avatar
-                        src={conversation.image_url}
-                        alt={conversation.name}
-                        className="w-12 h-12 rounded-full object-cover"
-                        fallback={
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
-                            <Users className="w-6 h-6 text-white" />
-                          </div>
-                        }
-                      />
+                      <div className="relative shrink-0">
+                        <Avatar
+                          src={conversation.image_url}
+                          alt={conversation.name}
+                          className="w-12 h-12 rounded-full object-cover"
+                          fallback={
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
+                              <Users className="w-6 h-6 text-white" />
+                            </div>
+                          }
+                        />
+                        {isConversationUnread && (
+                          <span
+                            className={`absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ${
+                              isSelected
+                                ? 'bg-white ring-blue-500'
+                                : 'bg-red-500 ring-white dark:ring-gray-900'
+                            }`}
+                            title="Unread messages"
+                          />
+                        )}
+                      </div>
                       <div className="flex-1 min-w-0 text-left">
                         <div className="flex items-center gap-1.5">
                           <p
@@ -294,7 +306,7 @@ export function GroupsList({
                             onClick={() =>
                               setExpandedSubchannelsByGroup((previousState) => ({
                                 ...previousState,
-                                [conversation.id]: !Boolean(previousState[conversation.id]),
+                                [conversation.id]: !previousState[conversation.id],
                               }))
                             }
                             className="mb-1 w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-[11px] font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors"
@@ -341,6 +353,14 @@ export function GroupsList({
                                           isChannelSelected ? 'text-blue-100' : 'text-gray-400 dark:text-gray-500'
                                         }`}
                                       />
+                                      {isChannelUnread && (
+                                        <span
+                                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                            isChannelSelected ? 'bg-white' : 'bg-red-500'
+                                          }`}
+                                          title="Unread messages"
+                                        />
+                                      )}
                                       <span className="truncate font-medium">{channelName}</span>
                                       {unreadCount > 0 && (
                                         <span

@@ -1,15 +1,24 @@
 import { useState } from 'react';
-import { LogIn } from 'lucide-react';
+import { Loader2, LogIn } from 'lucide-react';
 
 interface AuthPageProps {
   onAuthenticate: (token: string) => void;
+  onAuthenticateWithOAuth: () => Promise<void> | void;
+  oauthStatusMessage: string | null;
+  isOAuthAuthenticating: boolean;
 }
 
-export function AuthPage({ onAuthenticate }: AuthPageProps) {
+export function AuthPage({
+  onAuthenticate,
+  onAuthenticateWithOAuth,
+  oauthStatusMessage,
+  isOAuthAuthenticating,
+}: AuthPageProps) {
   const [token, setToken] = useState('');
+  const screenRecordingUrl = new URL('../../assets/support/groupus-screen-recording.mov', import.meta.url).href;
 
-  const handleSignIn = () => {
-    window.open('https://dev.groupme.com/', '_blank');
+  const handleOAuthSignIn = () => {
+    void onAuthenticateWithOAuth();
   };
 
   const handleTokenSubmit = (e: React.FormEvent) => {
@@ -32,19 +41,26 @@ export function AuthPage({ onAuthenticate }: AuthPageProps) {
           </div>
 
           <div className="space-y-6">
-            <div>
-              <p className="mb-3 text-xs font-semibold tracking-wide uppercase text-gray-500 text-center">
-                Step 1
+            <div className="space-y-3">
+              <p className="text-xs font-semibold tracking-wide uppercase text-gray-500 text-center">
+                Recommended: Sign in with OAuth
               </p>
+
               <button
-                onClick={handleSignIn}
-                className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-4 px-6 rounded-2xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-blue-500/30"
+                onClick={handleOAuthSignIn}
+                type="button"
+                disabled={isOAuthAuthenticating}
+                className="w-full inline-flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-2xl transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-blue-500/30"
               >
-                Open GroupMe Developer Portal
+                {isOAuthAuthenticating ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
+                {isOAuthAuthenticating ? 'Waiting for authorization...' : 'Log in with GroupMe'}
               </button>
-              <p className="mt-4 text-sm text-gray-600 text-center">
-                Log in there and copy your Access Token
-              </p>
+
+              {oauthStatusMessage && (
+                <p className="text-sm text-center text-gray-600">
+                  {oauthStatusMessage}
+                </p>
+              )}
             </div>
 
             <div className="relative">
@@ -52,7 +68,7 @@ export function AuthPage({ onAuthenticate }: AuthPageProps) {
                 <div className="w-full border-t border-gray-300"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-gray-500">Step 2: Paste your access token below</span>
+                <span className="px-4 bg-white text-gray-500">Or paste your access token manually</span>
               </div>
             </div>
 
@@ -72,6 +88,24 @@ export function AuthPage({ onAuthenticate }: AuthPageProps) {
                 <p className="mt-2 text-xs text-gray-500">
                   Go to https://dev.groupme.com/ after logging in, click Access Token, and paste it here.
                 </p>
+
+                <div className="mt-3 rounded-2xl border border-gray-200 bg-gray-50 p-3">
+                  <p className="mb-2 text-xs font-semibold tracking-wide uppercase text-gray-500 text-center">
+                    Access Token Walkthrough
+                  </p>
+                  <video
+                    className="w-full rounded-xl border border-gray-200 bg-black"
+                    src={screenRecordingUrl}
+                    controls
+                    muted
+                    loop
+                    autoPlay
+                    playsInline
+                    preload="metadata"
+                  >
+                    Your browser does not support embedded video playback.
+                  </video>
+                </div>
               </div>
               <button
                 type="submit"

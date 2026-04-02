@@ -15,6 +15,7 @@ import {
   Moon,
   LogOut,
   Download,
+  Trash2,
   RefreshCw,
   Settings2,
   Sun,
@@ -27,6 +28,10 @@ import buyMeACoffeeQr from '../../assets/support/buy-me-a-coffee-qr.png';
 interface SettingsMenuProps {
   accessToken: string | null;
   updateStatus: UpdateStatusPayload;
+  inAppNotificationsEnabled: boolean;
+  systemNotificationsEnabled: boolean;
+  systemNotificationsSupported: boolean;
+  systemNotificationPermission: NotificationPermission;
   appearancePreference: AppearancePreference;
   colorTheme: ColorTheme;
   darkSurfaceStyle: DarkSurfaceStyle;
@@ -35,7 +40,10 @@ interface SettingsMenuProps {
   onCheckForUpdates: () => void;
   onInstallUpdate: () => void;
   onOpenLatestRelease: () => void;
+  onToggleInAppNotifications: (enabled: boolean) => void;
+  onToggleSystemNotifications: (enabled: boolean) => void;
   onSignOut: () => void;
+  onDeleteToken: () => void;
   onChangeAppearance: (nextPreference: AppearancePreference) => void;
   onChangeColorTheme: (nextTheme: ColorTheme) => void;
   onChangeDarkSurfaceStyle: (nextStyle: DarkSurfaceStyle) => void;
@@ -46,6 +54,10 @@ interface SettingsMenuProps {
 export function SettingsMenu({
   accessToken,
   updateStatus,
+  inAppNotificationsEnabled,
+  systemNotificationsEnabled,
+  systemNotificationsSupported,
+  systemNotificationPermission,
   appearancePreference,
   colorTheme,
   darkSurfaceStyle,
@@ -54,7 +66,10 @@ export function SettingsMenu({
   onCheckForUpdates,
   onInstallUpdate,
   onOpenLatestRelease,
+  onToggleInAppNotifications,
+  onToggleSystemNotifications,
   onSignOut,
+  onDeleteToken,
   onChangeAppearance,
   onChangeColorTheme,
   onChangeDarkSurfaceStyle,
@@ -63,6 +78,7 @@ export function SettingsMenu({
 }: SettingsMenuProps) {
   const [tokenVisible, setTokenVisible] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
+  const [confirmDeleteToken, setConfirmDeleteToken] = useState(false);
   const [lastUpdateCheckAt, setLastUpdateCheckAt] = useState<Date | null>(null);
 
   const isCheckingUpdates = updateStatus.state === 'checking';
@@ -153,6 +169,13 @@ export function SettingsMenu({
   }, [updateStatus.state]);
 
   const UpdateStateIcon = updateStatePresentation.icon;
+  const systemNotificationsStatusMessage = !systemNotificationsSupported
+    ? 'System notifications are not supported on this device.'
+    : systemNotificationPermission === 'denied'
+      ? 'System notification permission is blocked. Enable it in your OS settings.'
+      : systemNotificationPermission === 'default'
+        ? 'Enable to request permission and show OS notifications for new messages.'
+        : 'System notifications are enabled.';
 
   const themeOptions: Array<{ key: ColorTheme; label: string; swatchHex?: string }> = [
     { key: 'blue', label: 'Ocean', swatchHex: '#3b82f6' },
@@ -350,6 +373,88 @@ export function SettingsMenu({
                 {copiedToken ? <Check className="w-4 h-4" /> : <Clipboard className="w-4 h-4" />}
                 {copiedToken ? 'Copied' : 'Copy'}
               </button>
+              <button
+                onClick={() => setConfirmDeleteToken(true)}
+                disabled={!accessToken}
+                className="p-2 rounded-lg border border-rose-300 dark:border-rose-700 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 disabled:opacity-50"
+                title="Delete saved token"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+            {confirmDeleteToken && (
+              <div className="rounded-lg border border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/20 p-3 space-y-2">
+                <p className="text-sm text-rose-700 dark:text-rose-300">
+                  Deleting your access token will log you out. You'll need to sign in again.
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setConfirmDeleteToken(false);
+                      onDeleteToken();
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-rose-600 text-white text-sm font-medium hover:bg-rose-700"
+                  >
+                    Delete and log out
+                  </button>
+                  <button
+                    onClick={() => setConfirmDeleteToken(false)}
+                    className="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section className="space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">Notifications</h3>
+
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/70 px-3 py-2.5 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-100">In-app notifications</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Show toast alerts inside GroupUs when new messages arrive.
+                  </p>
+                </div>
+                <button
+                  onClick={() => onToggleInAppNotifications(!inAppNotificationsEnabled)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors ${
+                    inAppNotificationsEnabled
+                      ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+                      : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  {inAppNotificationsEnabled ? 'On' : 'Off'}
+                </button>
+              </div>
+
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-100">System notifications</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Show operating system notifications for new messages.
+                  </p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                    {systemNotificationsStatusMessage}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    void onToggleSystemNotifications(!systemNotificationsEnabled);
+                  }}
+                  disabled={!systemNotificationsSupported}
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    systemNotificationsEnabled
+                      ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+                      : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  {systemNotificationsEnabled ? 'On' : 'Off'}
+                </button>
+              </div>
             </div>
           </section>
 

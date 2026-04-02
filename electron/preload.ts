@@ -15,6 +15,15 @@ interface UpdateStatusPayload {
   version?: string;
 }
 
+interface OAuthStartPayload {
+  clientId: string;
+  callbackUrl: string;
+}
+
+interface OAuthStartResult {
+  accessToken: string;
+}
+
 contextBridge.exposeInMainWorld('electron', {
   platform: process.platform,
   app: {
@@ -22,6 +31,10 @@ contextBridge.exposeInMainWorld('electron', {
   },
   windows: {
     openSettings: () => ipcRenderer.invoke('window:open-settings'),
+  },
+  auth: {
+    startOAuth: (payload: OAuthStartPayload) =>
+      ipcRenderer.invoke('auth:start-oauth', payload) as Promise<OAuthStartResult>,
   },
   updates: {
     check: () => ipcRenderer.invoke('updates:check'),

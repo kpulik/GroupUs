@@ -1,7 +1,7 @@
 {
   "name": "groupus-desktop-client",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "Unofficial cross-platform GroupUs desktop client for GroupMe, built with Electron and React.",
   "author": {
     "name": "Kevin Pulikkottil",
@@ -15,10 +15,11 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "electron:compile": "tsc -p tsconfig.electron.json",
-    "electron:dev": "npm run electron:compile && concurrently \"vite\" \"tsc -p tsconfig.electron.json --watch\" \"wait-on http://localhost:5173 && VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
-    "electron:dev:tools": "npm run electron:compile && concurrently \"vite\" \"tsc -p tsconfig.electron.json --watch\" \"wait-on http://localhost:5173 && ELECTRON_OPEN_DEVTOOLS=1 VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
-    "electron:build": "npm run build && electron-builder"
+    "electron:compile:preload": "esbuild electron/preload.ts --bundle --platform=node --outfile=dist-electron/preload.js --format=cjs --external:electron",
+    "electron:compile": "tsc -p tsconfig.electron.json && npm run electron:compile:preload",
+    "electron:dev": "npm run electron:compile && concurrently \"vite\" \"tsc -p tsconfig.electron.json --watch\" \"npm run electron:compile:preload\" \"wait-on http://localhost:5173 && VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
+    "electron:dev:tools": "npm run electron:compile && concurrently \"vite\" \"tsc -p tsconfig.electron.json --watch\" \"npm run electron:compile:preload\" \"wait-on http://localhost:5173 && ELECTRON_OPEN_DEVTOOLS=1 VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
+    "electron:build": "npm run build && npm run electron:compile:preload && electron-builder"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
@@ -72,8 +73,13 @@
         "nsis"
       ]
     },
+    "nsis": {
+      "installerIcon": "build/icons/icon.ico",
+      "uninstallerIcon": "build/icons/icon.ico",
+      "installerHeaderIcon": "build/icons/icon.ico"
+    },
     "linux": {
-      "icon": "build/icons/icon.png",
+      "icon": "build/icons/linux",
       "target": [
         "AppImage",
         "deb"

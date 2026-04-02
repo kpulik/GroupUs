@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AuthPage } from './components/Auth/AuthPage';
 import { AppLayout } from './components/Layout/AppLayout';
 import { GroupsList } from './components/Sidebar/GroupsList';
@@ -23,10 +23,34 @@ const APPEARANCE_STORAGE_KEY = 'groupus_appearance_preference';
 const COLOR_THEME_STORAGE_KEY = 'groupus_color_theme';
 const CUSTOM_ACCENT_COLOR_STORAGE_KEY = 'groupus_custom_accent_color';
 const DARK_SURFACE_STORAGE_KEY = 'groupus_dark_surface_style';
+const IN_APP_NOTIFICATIONS_STORAGE_KEY = 'groupus_in_app_notifications_enabled';
+const SYSTEM_NOTIFICATIONS_STORAGE_KEY = 'groupus_system_notifications_enabled';
+const DEFAULT_OAUTH_CALLBACK_URL = 'http://127.0.0.1:53682/oauth/callback';
+const DEFAULT_GROUPME_OAUTH_CLIENT_ID = '9Xn74NSjQ36eHFjIuYIfcSoqKu3ELBJEB7qBTsIxkWlNmbBu';
+const GROUPME_OAUTH_CLIENT_ID =
+  (import.meta.env.VITE_GROUPME_OAUTH_CLIENT_ID ?? '').trim() || DEFAULT_GROUPME_OAUTH_CLIENT_ID;
+const GROUPME_OAUTH_CALLBACK_URL =
+  (import.meta.env.VITE_GROUPME_OAUTH_CALLBACK_URL ?? '').trim() || DEFAULT_OAUTH_CALLBACK_URL;
 const LATEST_RELEASE_API_URL = 'https://api.github.com/repos/kpulik/GroupUs/releases/latest';
+const CONVERSATION_REFRESH_INTERVAL_MS = 5000;
+const IN_APP_NOTIFICATION_DURATION_MS = 6000;
+const MAX_IN_APP_NOTIFICATIONS = 4;
 
 interface LatestReleasePayload {
   tag_name?: string;
+}
+
+interface ConversationAlert {
+  conversationId: string;
+  conversationName: string;
+  newMessagesCount: number;
+}
+
+interface InAppNotificationItem {
+  id: string;
+  conversationId: string;
+  title: string;
+  body: string;
 }
 
 interface AccentPalette {
@@ -52,6 +76,14 @@ function normalizeHexColor(value: string | null): string {
   }
 
   return '#3b82f6';
+}
+
+function parseStoredBoolean(value: string | null, defaultValue: boolean): boolean {
+  if (value === null) {
+    return defaultValue;
+  }
+
+  return value === 'true';
 }
 
 function hexToRgb(hexColor: string): { r: number; g: number; b: number } {
@@ -172,6 +204,21 @@ function compareSemverVersions(leftVersion: string, rightVersion: string): numbe
   return 0;
 }
 
+function countNewMessages(previousConversation: Conversation | undefined, nextConversation: Conversation): number {
+  if (!previousConversation) {
+    return 0;
+  }
+
+  if (
+    previousConversation.message_count !== null &&
+    nextConversation.message_count !== null
+  ) {
+    return Math.max(0, nextConversation.message_count - previousConversation.message_count);
+  }
+
+  return nextConversation.updated_at > previousConversation.updated_at ? 1 : 0;
+}
+
 function App() {
   const isSettingsWindow = new URLSearchParams(window.location.search).get('view') === 'settings';
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -214,6 +261,8 @@ function App() {
     return normalizeHexColor(localStorage.getItem(CUSTOM_ACCENT_COLOR_STORAGE_KEY));
   });
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [oauthStatusMessage, setOauthStatusMessage] = useState<string | null>(null);
+  const [isOAuthAuthenticating, setIsOAuthAuthenticating] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatusPayload>({ state: 'idle' });
   const [subgroupsLoadedByGroupSourceId, setSubgroupsLoadedByGroupSourceId] = useState<Record<string, boolean>>({});
   const [mutedConversationIds, setMutedConversationIds] = useState<Record<string, boolean>>(() => {
@@ -254,6 +303,24 @@ function App() {
   });
   const [loading, setLoading] = useState(true);
   const [showInlineSettingsFallback, setShowInlineSettingsFallback] = useState(false);
+  const [inAppNotificationsEnabled, setInAppNotificationsEnabled] = useState<boolean>(() => {
+    return parseStoredBoolean(localStorage.getItem(IN_APP_NOTIFICATIONS_STORAGE_KEY), true);
+  });
+  const [systemNotificationsEnabled, setSystemNotificationsEnabled] = useState<boolean>(() => {
+    return parseStoredBoolean(localStorage.getItem(SYSTEM_NOTIFICATIONS_STORAGE_KEY), false);
+  });
+  const [systemNotificationPermission, setSystemNotificationPermission] = useState<NotificationPermission>(() => {
+    if (typeof Notification === 'undefined') {
+      return 'denied';
+    }
+
+    return Notification.permission;
+  });
+  const [inAppNotifications, setInAppNotifications] = useState<InAppNotificationItem[]>([]);
+  const hasSyncedConversationsOnceRef = useRef(false);
+  const inAppNotificationTimerIdsRef = useRef<Record<string, number>>({});
+  const conversationsRef = useRef<Conversation[]>([]);
+  const systemNotificationsSupported = typeof Notification !== 'undefined';
 
   const isUnauthorizedGroupMeError = (error: unknown) => {
     return error instanceof GroupMeApiError && (error.status === 401 || error.status === 403);
@@ -279,6 +346,24 @@ function App() {
   }, []);
 
   useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  useEffect(() => {
+    if (!systemNotificationsSupported) {
+      setSystemNotificationPermission('denied');
+      setSystemNotificationsEnabled(false);
+      return;
+    }
+
+    setSystemNotificationPermission(Notification.permission);
+
+    if (Notification.permission !== 'granted' && systemNotificationsEnabled) {
+      setSystemNotificationsEnabled(false);
+    }
+  }, [systemNotificationsEnabled, systemNotificationsSupported]);
+
+  useEffect(() => {
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key !== 'groupme_access_token') {
         return;
@@ -287,15 +372,21 @@ function App() {
       if (!event.newValue) {
         setIsAuthenticated(false);
         setCurrentUser(null);
+        conversationsRef.current = [];
+        hasSyncedConversationsOnceRef.current = false;
         setConversations([]);
         setSelectedConversationId(null);
         setSelectedSubgroupByGroup({});
         setConversationReadState({});
         setAccessToken(null);
+        setInAppNotifications([]);
+        setOauthStatusMessage(null);
+        setIsOAuthAuthenticating(false);
         return;
       }
 
       setAccessToken(event.newValue);
+      hasSyncedConversationsOnceRef.current = false;
       setIsAuthenticated(true);
     };
 
@@ -312,6 +403,14 @@ function App() {
   useEffect(() => {
     localStorage.setItem(READ_STATE_STORAGE_KEY, JSON.stringify(conversationReadState));
   }, [conversationReadState]);
+
+  useEffect(() => {
+    localStorage.setItem(IN_APP_NOTIFICATIONS_STORAGE_KEY, String(inAppNotificationsEnabled));
+  }, [inAppNotificationsEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem(SYSTEM_NOTIFICATIONS_STORAGE_KEY, String(systemNotificationsEnabled));
+  }, [systemNotificationsEnabled]);
 
   useEffect(() => {
     localStorage.setItem(APPEARANCE_STORAGE_KEY, appearancePreference);
@@ -375,6 +474,228 @@ function App() {
     };
   }, [appearancePreference]);
 
+  useEffect(() => {
+    return () => {
+      for (const timeoutId of Object.values(inAppNotificationTimerIdsRef.current)) {
+        window.clearTimeout(timeoutId);
+      }
+
+      inAppNotificationTimerIdsRef.current = {};
+    };
+  }, []);
+
+  const dismissInAppNotification = useCallback((notificationId: string) => {
+    const timeoutId = inAppNotificationTimerIdsRef.current[notificationId];
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
+      delete inAppNotificationTimerIdsRef.current[notificationId];
+    }
+
+    setInAppNotifications((currentNotifications) =>
+      currentNotifications.filter((notification) => notification.id !== notificationId),
+    );
+  }, []);
+
+  const enqueueInAppNotification = useCallback((alert: ConversationAlert) => {
+    const notificationId = `${alert.conversationId}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const body =
+      alert.newMessagesCount === 1
+        ? '1 new message'
+        : `${alert.newMessagesCount} new messages`;
+
+    setInAppNotifications((currentNotifications) => {
+      const nextNotifications = [
+        ...currentNotifications,
+        {
+          id: notificationId,
+          conversationId: alert.conversationId,
+          title: alert.conversationName,
+          body,
+        },
+      ];
+
+      return nextNotifications.slice(-MAX_IN_APP_NOTIFICATIONS);
+    });
+
+    const timeoutId = window.setTimeout(() => {
+      dismissInAppNotification(notificationId);
+    }, IN_APP_NOTIFICATION_DURATION_MS);
+
+    inAppNotificationTimerIdsRef.current[notificationId] = timeoutId;
+  }, [dismissInAppNotification]);
+
+  const sendSystemNotification = useCallback((alert: ConversationAlert) => {
+    if (!systemNotificationsSupported || !systemNotificationsEnabled || systemNotificationPermission !== 'granted') {
+      return;
+    }
+
+    const body =
+      alert.newMessagesCount === 1
+        ? '1 new message'
+        : `${alert.newMessagesCount} new messages`;
+
+    const notification = new Notification(alert.conversationName, { body });
+    notification.onclick = () => {
+      window.focus();
+      setSelectedConversationId(alert.conversationId);
+      notification.close();
+    };
+
+    window.setTimeout(() => {
+      notification.close();
+    }, IN_APP_NOTIFICATION_DURATION_MS);
+  }, [systemNotificationsEnabled, systemNotificationsSupported, systemNotificationPermission]);
+
+  const emitConversationAlerts = useCallback((alerts: ConversationAlert[]) => {
+    if (alerts.length === 0) {
+      return;
+    }
+
+    for (const alert of alerts) {
+      if (inAppNotificationsEnabled) {
+        enqueueInAppNotification(alert);
+      }
+
+      sendSystemNotification(alert);
+    }
+  }, [enqueueInAppNotification, inAppNotificationsEnabled, sendSystemNotification]);
+
+  const handleToggleInAppNotifications = useCallback((enabled: boolean) => {
+    setInAppNotificationsEnabled(enabled);
+  }, []);
+
+  const handleToggleSystemNotifications = useCallback(async (enabled: boolean) => {
+    if (!enabled) {
+      setSystemNotificationsEnabled(false);
+      return;
+    }
+
+    if (!systemNotificationsSupported) {
+      setSystemNotificationPermission('denied');
+      setSystemNotificationsEnabled(false);
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      setSystemNotificationPermission('granted');
+      setSystemNotificationsEnabled(true);
+      return;
+    }
+
+    const requestedPermission = await Notification.requestPermission();
+    setSystemNotificationPermission(requestedPermission);
+    setSystemNotificationsEnabled(requestedPermission === 'granted');
+  }, [systemNotificationsSupported]);
+
+  const refreshConversations = useCallback(async (notifyOnIncomingMessages: boolean) => {
+    const activeConversationId = selectedConversationId;
+
+    try {
+      const loadedConversations = await groupMeService.getConversations();
+      const previousConversations = conversationsRef.current;
+      const previousConversationsById = new Map(
+        previousConversations.map((conversation) => [conversation.id, conversation]),
+      );
+
+      const shouldEmitAlerts = notifyOnIncomingMessages && hasSyncedConversationsOnceRef.current;
+      const incomingAlerts: ConversationAlert[] = [];
+
+      if (shouldEmitAlerts) {
+        for (const conversation of loadedConversations) {
+          const previousConversation = previousConversationsById.get(conversation.id);
+          const newMessagesCount = countNewMessages(previousConversation, conversation);
+
+          if (
+            newMessagesCount > 0 &&
+            conversation.id !== activeConversationId &&
+            !mutedConversationIds[conversation.id]
+          ) {
+            incomingAlerts.push({
+              conversationId: conversation.id,
+              conversationName: conversation.name,
+              newMessagesCount,
+            });
+          }
+        }
+      }
+
+      const preservedSubgroups = previousConversations.filter(
+        (conversation) => conversation.type === 'subgroup',
+      );
+
+      const mergedConversationsById = new Map<string, Conversation>();
+
+      for (const subgroupConversation of preservedSubgroups) {
+        mergedConversationsById.set(subgroupConversation.id, subgroupConversation);
+      }
+
+      for (const loadedConversation of loadedConversations) {
+        const existingConversation = mergedConversationsById.get(loadedConversation.id);
+        mergedConversationsById.set(loadedConversation.id, {
+          ...existingConversation,
+          ...loadedConversation,
+        });
+      }
+
+      const nextConversations = Array.from(mergedConversationsById.values()).sort(
+        (leftConversation, rightConversation) => rightConversation.updated_at - leftConversation.updated_at,
+      );
+
+      conversationsRef.current = nextConversations;
+      setConversations(nextConversations);
+
+      hasSyncedConversationsOnceRef.current = true;
+
+      setSelectedConversationId((currentConversationId) => {
+        const rootConversations = loadedConversations.filter(
+          (conversation) => conversation.type !== 'subgroup',
+        );
+
+        if (
+          currentConversationId &&
+          rootConversations.some((conversation) => conversation.id === currentConversationId)
+        ) {
+          return currentConversationId;
+        }
+
+        return rootConversations.length > 0 ? rootConversations[0].id : null;
+      });
+
+      emitConversationAlerts(incomingAlerts);
+    } catch (error) {
+      if (isUnauthorizedGroupMeError(error)) {
+        groupMeService.clearAccessToken();
+        setAccessToken(null);
+        setIsAuthenticated(false);
+        setCurrentUser(null);
+        conversationsRef.current = [];
+        setConversations([]);
+        setSelectedConversationId(null);
+        setSelectedSubgroupByGroup({});
+        setConversationReadState({});
+        setSubgroupsLoadedByGroupSourceId({});
+        hasSyncedConversationsOnceRef.current = false;
+        return;
+      }
+
+      console.error('Failed to refresh conversations:', error);
+    }
+  }, [emitConversationAlerts, isUnauthorizedGroupMeError, mutedConversationIds, selectedConversationId]);
+
+  useEffect(() => {
+    if (!isAuthenticated || isSettingsWindow) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshConversations(true);
+    }, CONVERSATION_REFRESH_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isAuthenticated, isSettingsWindow, refreshConversations]);
+
   const checkAuth = async () => {
     const isAuth = groupMeService.isAuthenticated();
     if (isAuth) {
@@ -402,35 +723,20 @@ function App() {
       const user = await groupMeService.getMyUser();
       setCurrentUser(user);
 
-      const loadedConversations = await groupMeService.getConversations();
-      setConversations(loadedConversations);
-      setSubgroupsLoadedByGroupSourceId({});
-
-      setSelectedConversationId((currentConversationId) => {
-        const rootConversations = loadedConversations.filter(
-          (conversation) => conversation.type !== 'subgroup',
-        );
-
-        if (
-          currentConversationId &&
-          rootConversations.some((conversation) => conversation.id === currentConversationId)
-        ) {
-          return currentConversationId;
-        }
-
-        return rootConversations.length > 0 ? rootConversations[0].id : null;
-      });
+      await refreshConversations(false);
     } catch (error) {
       if (isUnauthorizedGroupMeError(error)) {
         groupMeService.clearAccessToken();
         setAccessToken(null);
         setIsAuthenticated(false);
         setCurrentUser(null);
+        conversationsRef.current = [];
         setConversations([]);
         setSelectedConversationId(null);
         setSelectedSubgroupByGroup({});
         setConversationReadState({});
         setSubgroupsLoadedByGroupSourceId({});
+        hasSyncedConversationsOnceRef.current = false;
         return;
       }
 
@@ -438,22 +744,84 @@ function App() {
     }
   };
 
+  const handleAuthenticateWithOAuth = useCallback(async () => {
+    const authBridge = window.electron?.auth;
+    const clientId = GROUPME_OAUTH_CLIENT_ID;
+    const callbackUrl = GROUPME_OAUTH_CALLBACK_URL;
+
+    if (!clientId) {
+      setOauthStatusMessage('OAuth is not configured. Set VITE_GROUPME_OAUTH_CLIENT_ID and restart the app.');
+      return;
+    }
+
+    if (!callbackUrl) {
+      setOauthStatusMessage('OAuth callback URL is missing. Set VITE_GROUPME_OAUTH_CALLBACK_URL and restart the app.');
+      return;
+    }
+
+    if (!authBridge?.startOAuth) {
+      setOauthStatusMessage('OAuth is unavailable. Please restart the app or use an access token instead.');
+      return;
+    }
+
+    setIsOAuthAuthenticating(true);
+    setOauthStatusMessage('Opening GroupMe OAuth in your browser...');
+
+    try {
+      const result = await authBridge.startOAuth({
+        clientId,
+        callbackUrl,
+      });
+
+      const nextAccessToken = result.accessToken?.trim();
+      if (!nextAccessToken) {
+        throw new Error('GroupMe OAuth did not return an access token.');
+      }
+
+      groupMeService.setAccessToken(nextAccessToken);
+      setAccessToken(nextAccessToken);
+      hasSyncedConversationsOnceRef.current = false;
+      setIsAuthenticated(true);
+      setOauthStatusMessage('OAuth sign-in completed successfully.');
+    } catch (error) {
+      setOauthStatusMessage(
+        error instanceof Error ? error.message : 'OAuth sign-in failed. Please try again.',
+      );
+    } finally {
+      setIsOAuthAuthenticating(false);
+    }
+  }, []);
+
   const handleAuthenticate = (token: string) => {
     groupMeService.setAccessToken(token);
     setAccessToken(token);
+    hasSyncedConversationsOnceRef.current = false;
     setIsAuthenticated(true);
+    setOauthStatusMessage(null);
   };
 
   const handleSignOut = () => {
     groupMeService.clearAccessToken();
+
+    for (const timeoutId of Object.values(inAppNotificationTimerIdsRef.current)) {
+      window.clearTimeout(timeoutId);
+    }
+
+    inAppNotificationTimerIdsRef.current = {};
+
     setIsAuthenticated(false);
     setCurrentUser(null);
+    conversationsRef.current = [];
+    hasSyncedConversationsOnceRef.current = false;
     setConversations([]);
     setSelectedConversationId(null);
     setSelectedSubgroupByGroup({});
     setConversationReadState({});
     setSubgroupsLoadedByGroupSourceId({});
     setAccessToken(null);
+    setInAppNotifications([]);
+    setOauthStatusMessage(null);
+    setIsOAuthAuthenticating(false);
     setUpdateStatus({ state: 'idle' });
   };
 
@@ -867,6 +1235,11 @@ function App() {
     setSelectedConversationId(null);
   };
 
+  const handleInAppNotificationClick = (notification: InAppNotificationItem) => {
+    setSelectedConversationId(notification.conversationId);
+    dismissInAppNotification(notification.id);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-900 dark:to-gray-900 flex items-center justify-center">
@@ -881,7 +1254,14 @@ function App() {
   }
 
   if (!isAuthenticated) {
-    return <AuthPage onAuthenticate={handleAuthenticate} />;
+    return (
+      <AuthPage
+        onAuthenticate={handleAuthenticate}
+        onAuthenticateWithOAuth={handleAuthenticateWithOAuth}
+        oauthStatusMessage={oauthStatusMessage}
+        isOAuthAuthenticating={isOAuthAuthenticating}
+      />
+    );
   }
 
   if (isSettingsWindow) {
@@ -893,7 +1273,17 @@ function App() {
         onCheckForUpdates={handleCheckForUpdates}
         onInstallUpdate={handleInstallUpdate}
         onOpenLatestRelease={handleOpenLatestRelease}
+        inAppNotificationsEnabled={inAppNotificationsEnabled}
+        systemNotificationsEnabled={systemNotificationsEnabled}
+        systemNotificationsSupported={systemNotificationsSupported}
+        systemNotificationPermission={systemNotificationPermission}
+        onToggleInAppNotifications={handleToggleInAppNotifications}
+        onToggleSystemNotifications={handleToggleSystemNotifications}
         onSignOut={() => {
+          handleSignOut();
+          window.close();
+        }}
+        onDeleteToken={() => {
           handleSignOut();
           window.close();
         }}
@@ -953,6 +1343,37 @@ function App() {
         }
       />
 
+      {inAppNotificationsEnabled && inAppNotifications.length > 0 && (
+        <div className="fixed right-4 top-14 z-[95] w-[min(360px,92vw)] space-y-2 pointer-events-none">
+          {inAppNotifications.map((notification) => (
+            <div
+              key={notification.id}
+              className="pointer-events-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl shadow-xl"
+            >
+              <button
+                onClick={() => handleInAppNotificationClick(notification)}
+                className="w-full text-left px-3 py-2.5 hover:bg-gray-100/80 dark:hover:bg-gray-800/80 transition-colors rounded-t-xl"
+              >
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                  {notification.title}
+                </p>
+                <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
+                  {notification.body}
+                </p>
+              </button>
+              <div className="px-3 pb-2 pt-0.5 flex justify-end">
+                <button
+                  onClick={() => dismissInAppNotification(notification.id)}
+                  className="text-[11px] font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {showInlineSettingsFallback && (
         <SettingsMenu
           accessToken={accessToken}
@@ -961,7 +1382,17 @@ function App() {
           onCheckForUpdates={handleCheckForUpdates}
           onInstallUpdate={handleInstallUpdate}
           onOpenLatestRelease={handleOpenLatestRelease}
+          inAppNotificationsEnabled={inAppNotificationsEnabled}
+          systemNotificationsEnabled={systemNotificationsEnabled}
+          systemNotificationsSupported={systemNotificationsSupported}
+          systemNotificationPermission={systemNotificationPermission}
+          onToggleInAppNotifications={handleToggleInAppNotifications}
+          onToggleSystemNotifications={handleToggleSystemNotifications}
           onSignOut={() => {
+            handleSignOut();
+            setShowInlineSettingsFallback(false);
+          }}
+          onDeleteToken={() => {
             handleSignOut();
             setShowInlineSettingsFallback(false);
           }}
