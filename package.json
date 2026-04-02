@@ -1,7 +1,7 @@
 {
   "name": "groupus-desktop-client",
   "private": true,
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Unofficial cross-platform GroupUs desktop client for GroupMe, built with Electron and React.",
   "author": {
     "name": "Kevin Pulikkottil",
@@ -62,6 +62,7 @@
     "mac": {
       "icon": "build/icons/icon.icns",
       "category": "public.app-category.social-networking",
+      "identity": null,
       "target": [
         "dmg",
         "zip"
