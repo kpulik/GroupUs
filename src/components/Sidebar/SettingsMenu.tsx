@@ -939,7 +939,18 @@ export function SettingsMenu({
               <div className="flex items-start gap-2">
                 <UpdateStateIcon className={`w-4 h-4 mt-0.5 ${updateStatePresentation.iconClassName}`} />
                 <div className="min-w-0">
-                  <p className="text-sm text-gray-700 dark:text-gray-200">{updateStatePresentation.message}</p>
+                  {updateStatus.state === 'error' && updateStatus.version && window.electron?.platform === 'darwin' ? (
+                    <>
+                      <p className="text-sm text-gray-700 dark:text-gray-200">
+                        v{updateStatus.version} available
+                        <span className="ml-1.5 text-xs text-gray-500 dark:text-gray-400">
+                          - Auto-install is unavailable on this macOS build.
+                        </span>
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-700 dark:text-gray-200">{updateStatePresentation.message}</p>
+                  )}
                   {lastUpdateCheckAt && (
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                       Last checked: {lastUpdateCheckAt.toLocaleString()}
