@@ -9,6 +9,7 @@ import {
   type MessageBoxOptions,
   type WebContents,
 } from 'electron';
+import { execFileSync } from 'node:child_process';
 import http, { type Server as HttpServer } from 'node:http';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -24,6 +25,8 @@ const MEDIA_SEARCH_RESULTS_LIMIT = 24;
 const LOCATION_SEARCH_RESULTS_LIMIT = 8;
 const TENOR_PUBLIC_API_KEY = 'LIVDSRZULELA';
 const isMac = process.platform === 'darwin';
+const UNSIGNED_MAC_UPDATER_MESSAGE =
+  'Automatic install updates are unavailable for this macOS build. Use Get latest from GitHub to install updates manually.';
 const shouldOpenDevTools =
   process.env.ELECTRON_OPEN_DEVTOOLS === '1' || process.env.ELECTRON_OPEN_DEVTOOLS === 'true';
 
@@ -99,8 +102,65 @@ let settingsWindow: BrowserWindow | null = null;
 let updateCheckInterval: ReturnType<typeof setInterval> | null = null;
 let updateDownloadReadyVersion: string | null = null;
 let isUpdateCheckInProgress = false;
+let isMacBuildCodeSignatureValid: boolean | null = null;
 let isOAuthFlowInProgress = false;
 const geolocationPermissionByOrigin = new Map<string, LocationPermissionState>();
+
+function resolveAppBundlePath(): string | null {
+  const executablePath = app.getPath('exe');
+  const marker = `${path.sep}Contents${path.sep}MacOS${path.sep}`;
+  const markerIndex = executablePath.indexOf(marker);
+  if (markerIndex < 0) {
+    return null;
+  }
+
+  return executablePath.slice(0, markerIndex);
+}
+
+function checkMacCodeSignatureValidity(): boolean {
+  const appBundlePath = resolveAppBundlePath();
+  if (!appBundlePath) {
+    return false;
+  }
+
+  try {
+    execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', appBundlePath], {
+      stdio: 'ignore',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function canUseMacAutoInstallUpdates(): boolean {
+  if (!isMac || !app.isPackaged) {
+    return true;
+  }
+
+  if (isMacBuildCodeSignatureValid === null) {
+    isMacBuildCodeSignatureValid = checkMacCodeSignatureValidity();
+  }
+
+  return isMacBuildCodeSignatureValid;
+}
+
+function toSafeUpdaterErrorMessage(error: unknown): string {
+  const defaultMessage = 'Failed to check for updates.';
+  const rawMessage =
+    typeof error === 'object' && error !== null && 'message' in error
+      ? String((error as { message?: unknown }).message ?? defaultMessage)
+      : defaultMessage;
+
+  if (
+    isMac &&
+    /code signature|ShipIt|did not pass validation/i.test(rawMessage)
+  ) {
+    return UNSIGNED_MAC_UPDATER_MESSAGE;
+  }
+
+  return rawMessage;
+}
 
 function focusMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -747,6 +807,14 @@ function initializeAutoUpdates() {
     return;
   }
 
+  if (!canUseMacAutoInstallUpdates()) {
+    sendUpdateStatus({
+      state: 'idle',
+      message: UNSIGNED_MAC_UPDATER_MESSAGE,
+    });
+    return;
+  }
+
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
@@ -791,17 +859,17 @@ function initializeAutoUpdates() {
     isUpdateCheckInProgress = false;
     sendUpdateStatus({
       state: 'error',
-      message: error.message,
+      message: toSafeUpdaterErrorMessage(error),
     });
   });
 
   autoUpdater.checkForUpdates().catch((error) => {
-    sendUpdateStatus({ state: 'error', message: error.message });
+    sendUpdateStatus({ state: 'error', message: toSafeUpdaterErrorMessage(error) });
   });
 
   updateCheckInterval = setInterval(() => {
     autoUpdater.checkForUpdates().catch((error) => {
-      sendUpdateStatus({ state: 'error', message: error.message });
+      sendUpdateStatus({ state: 'error', message: toSafeUpdaterErrorMessage(error) });
     });
   }, WEEK_IN_MS);
 }
@@ -1242,6 +1310,14 @@ app.whenReady().then(() => {
       return;
     }
 
+    if (!canUseMacAutoInstallUpdates()) {
+      sendUpdateStatus({
+        state: 'error',
+        message: UNSIGNED_MAC_UPDATER_MESSAGE,
+      });
+      return;
+    }
+
     if (isUpdateCheckInProgress) {
       sendUpdateStatus({ state: 'checking', message: 'Update check already in progress...' });
       return;
@@ -1254,7 +1330,10 @@ app.whenReady().then(() => {
       await autoUpdater.checkForUpdates();
     } catch (error) {
       isUpdateCheckInProgress = false;
-      throw error;
+      sendUpdateStatus({
+        state: 'error',
+        message: toSafeUpdaterErrorMessage(error),
+      });
     }
   });
 
@@ -1263,6 +1342,14 @@ app.whenReady().then(() => {
       sendUpdateStatus({
         state: 'idle',
         message: 'Install updates from packaged builds.',
+      });
+      return;
+    }
+
+    if (!canUseMacAutoInstallUpdates()) {
+      sendUpdateStatus({
+        state: 'error',
+        message: UNSIGNED_MAC_UPDATER_MESSAGE,
       });
       return;
     }
