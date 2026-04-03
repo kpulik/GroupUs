@@ -964,6 +964,19 @@ export function SettingsMenu({
               </p>
             )}
 
+            {window.electron?.platform === 'darwin' && (
+              <div className="rounded-lg border border-blue-200/60 dark:border-blue-700/40 bg-blue-50/60 dark:bg-blue-950/20 px-3 py-2">
+                <p className="text-xs font-medium text-blue-800 dark:text-blue-300">macOS note</p>
+                <p className="mt-0.5 text-xs text-blue-700/90 dark:text-blue-400/80">
+                  Apple requires a $99/year developer membership to code-sign apps. Since GroupUs is a free
+                  project, the app isn't signed, which means macOS will ask you to manually allow it.
+                  To update, download the latest release, replace
+                  the app in your Applications folder, and
+                  run: <code className="px-1 py-0.5 rounded bg-blue-100/80 dark:bg-blue-900/40 text-[11px] font-mono">xattr -dr com.apple.quarantine /Applications/GroupUs.app</code>
+                </p>
+              </div>
+            )}
+
             <button
               onClick={onOpenLatestRelease}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"

@@ -2139,6 +2139,7 @@ export function MessageView({
   const [isComposerDropTarget, setIsComposerDropTarget] = useState(false);
   const [showInfoCard, setShowInfoCard] = useState(false);
   const [showPinnedPanel, setShowPinnedPanel] = useState(false);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [showMembersPanel, setShowMembersPanel] = useState(false);
   const [collapseSystemMessages, setCollapseSystemMessages] = useState(true);
   const [showGroupMenu, setShowGroupMenu] = useState(false);
@@ -3203,6 +3204,9 @@ export function MessageView({
         if (container.scrollTop <= 96) {
           void loadOlderMessages();
         }
+
+        const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+        setShowScrollToBottom(distanceFromBottom > 400);
       });
     };
 
@@ -7360,6 +7364,21 @@ export function MessageView({
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {showScrollToBottom && (
+        <div className="relative">
+          <button
+            onClick={scrollToBottom}
+            className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-gray-800/80 dark:bg-gray-200/80 text-white dark:text-gray-900 shadow-lg backdrop-blur-sm hover:bg-gray-800 dark:hover:bg-gray-200 transition-all cursor-pointer"
+            title="Jump to latest"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+            Jump to latest
+          </button>
+        </div>
+      )}
 
       <div
         className={`p-4 backdrop-blur-3xl border-t transition-colors ${
