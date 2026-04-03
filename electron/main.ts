@@ -101,6 +101,7 @@ let mainWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 let updateCheckInterval: ReturnType<typeof setInterval> | null = null;
 let updateDownloadReadyVersion: string | null = null;
+let lastKnownAvailableVersion: string | null = null;
 let isUpdateCheckInProgress = false;
 let isMacBuildCodeSignatureValid: boolean | null = null;
 let isOAuthFlowInProgress = false;
@@ -825,6 +826,7 @@ function initializeAutoUpdates() {
 
   autoUpdater.on('update-available', (info) => {
     updateDownloadReadyVersion = null;
+    lastKnownAvailableVersion = info.version;
     sendUpdateStatus({
       state: 'available',
       message: `Update available: v${info.version}. Downloading now...`,
@@ -834,6 +836,7 @@ function initializeAutoUpdates() {
 
   autoUpdater.on('update-not-available', () => {
     isUpdateCheckInProgress = false;
+    lastKnownAvailableVersion = null;
     sendUpdateStatus({ state: 'not-available', message: 'You are on the latest version.' });
   });
 
@@ -860,6 +863,7 @@ function initializeAutoUpdates() {
     sendUpdateStatus({
       state: 'error',
       message: toSafeUpdaterErrorMessage(error),
+      version: lastKnownAvailableVersion ?? undefined,
     });
   });
 
@@ -1310,14 +1314,6 @@ app.whenReady().then(() => {
       return;
     }
 
-    if (!canUseMacAutoInstallUpdates()) {
-      sendUpdateStatus({
-        state: 'error',
-        message: UNSIGNED_MAC_UPDATER_MESSAGE,
-      });
-      return;
-    }
-
     if (isUpdateCheckInProgress) {
       sendUpdateStatus({ state: 'checking', message: 'Update check already in progress...' });
       return;
@@ -1327,12 +1323,30 @@ app.whenReady().then(() => {
     sendUpdateStatus({ state: 'checking', message: 'Checking for updates...' });
 
     try {
-      await autoUpdater.checkForUpdates();
+      const result = await autoUpdater.checkForUpdates();
+
+      if (!canUseMacAutoInstallUpdates()) {
+        isUpdateCheckInProgress = false;
+        const version = result?.updateInfo?.version ?? lastKnownAvailableVersion ?? undefined;
+        if (version && version !== app.getVersion()) {
+          sendUpdateStatus({
+            state: 'error',
+            message: UNSIGNED_MAC_UPDATER_MESSAGE,
+            version,
+          });
+        } else {
+          sendUpdateStatus({
+            state: 'not-available',
+            message: 'You are on the latest version.',
+          });
+        }
+      }
     } catch (error) {
       isUpdateCheckInProgress = false;
       sendUpdateStatus({
         state: 'error',
         message: toSafeUpdaterErrorMessage(error),
+        version: lastKnownAvailableVersion ?? undefined,
       });
     }
   });
