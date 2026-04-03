@@ -62,7 +62,8 @@
       {
         "provider": "github",
         "owner": "kpulik",
-        "repo": "GroupUs"
+        "repo": "GroupUs",
+        "releaseType": "release"
       }
     ],
     "mac": {

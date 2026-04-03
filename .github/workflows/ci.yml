@@ -14,18 +14,18 @@ jobs:
         os: [macos-latest, windows-latest, ubuntu-latest]
 
     runs-on: ${{ matrix.os }}
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout
-        shell: pwsh
-        run: |
-          git init .
-          git remote add origin "https://github.com/$env:GITHUB_REPOSITORY.git"
-          git -c http.extraheader="AUTHORIZATION: bearer $env:GITHUB_TOKEN" fetch --depth=1 origin "$env:GITHUB_SHA"
-          git checkout --force FETCH_HEAD
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
 
       - name: Show runtime versions
         shell: pwsh
