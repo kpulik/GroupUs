@@ -48,7 +48,6 @@ export function AppLayout({ sidebar, main }: AppLayoutProps) {
 
   return (
     <div className="relative flex h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-900 dark:to-gray-900">
-      <div className="drag-region absolute top-0 left-0 right-0 h-11 z-50" />
       <div
         className="relative bg-white/40 dark:bg-gray-900/60 backdrop-blur-3xl border-r border-gray-200/50 dark:border-gray-700/60 flex flex-col shrink-0"
         style={{ width: `${sidebarWidth}px` }}

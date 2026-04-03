@@ -1,7 +1,7 @@
 {
   "name": "groupus-desktop-client",
   "private": true,
-  "version": "1.1.2",
+  "version": "2.0.0",
   "description": "Unofficial cross-platform GroupUs desktop client for GroupMe, built with Electron and React.",
   "author": {
     "name": "Kevin Pulikkottil",
@@ -24,9 +24,15 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
     "electron-updater": "^6.3.9",
+    "emoji-picker-react": "^4.18.0",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
+    "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
@@ -63,6 +69,10 @@
       "icon": "build/icons/icon.icns",
       "category": "public.app-category.social-networking",
       "identity": null,
+      "extendInfo": {
+        "NSLocationWhenInUseUsageDescription": "GroupUs uses your location only when you choose Current location while composing a message.",
+        "NSLocationUsageDescription": "GroupUs uses your location only when you choose Current location while composing a message."
+      },
       "target": [
         "dmg",
         "zip"

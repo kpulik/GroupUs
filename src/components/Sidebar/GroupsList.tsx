@@ -78,8 +78,11 @@ export function GroupsList({
       all: rootConversations.length,
       groups: rootConversations.filter((conversation) => conversation.type === 'group').length,
       chats: rootConversations.filter((conversation) => conversation.type === 'chat').length,
+      unread: rootConversations.filter(
+        (conversation) => (unreadCountByConversationId[conversation.id] ?? 0) > 0,
+      ).length,
     }),
-    [rootConversations],
+    [rootConversations, unreadCountByConversationId],
   );
 
   const hasUnreadConversations = useMemo(
@@ -89,6 +92,7 @@ export function GroupsList({
 
   const filterTabs: Array<{ key: ConversationFilter; label: string; count: number }> = [
     { key: 'all', label: 'All', count: counts.all },
+    { key: 'unread', label: 'Unread', count: counts.unread },
     { key: 'groups', label: 'Groups', count: counts.groups },
     { key: 'chats', label: 'Chats', count: counts.chats },
   ];
@@ -177,6 +181,7 @@ export function GroupsList({
             {allSubchannelsExpanded ? 'Collapse all subchannels' : 'Expand all subchannels'}
           </button>
         )}
+
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-2">

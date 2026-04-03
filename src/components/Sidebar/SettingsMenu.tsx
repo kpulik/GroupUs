@@ -23,12 +23,22 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import type { AppearancePreference, ColorTheme, DarkSurfaceStyle } from '../../App';
+import type {
+  UpdateUserProfileInput,
+  User,
+} from '../../services/groupme';
+import { Avatar } from '../Common/Avatar';
 import buyMeACoffeeQr from '../../assets/support/buy-me-a-coffee-qr.png';
 
 interface SettingsMenuProps {
   accessToken: string | null;
+  currentUser: User | null;
   updateStatus: UpdateStatusPayload;
   inAppNotificationsEnabled: boolean;
+  notificationPreviewEnabled: boolean;
+  recapSummaryModeEnabled: boolean;
+  notificationDigestEnabled: boolean;
+  notificationDigestWindowMinutes: number;
   systemNotificationsEnabled: boolean;
   systemNotificationsSupported: boolean;
   systemNotificationPermission: NotificationPermission;
@@ -36,11 +46,18 @@ interface SettingsMenuProps {
   colorTheme: ColorTheme;
   darkSurfaceStyle: DarkSurfaceStyle;
   customAccentColor: string;
+  composerQuickEmojis: string[];
+  reactionQuickEmojis: string[];
   onClose: () => void;
   onCheckForUpdates: () => void;
   onInstallUpdate: () => void;
   onOpenLatestRelease: () => void;
+  onSaveProfile: (updates: UpdateUserProfileInput) => Promise<void>;
   onToggleInAppNotifications: (enabled: boolean) => void;
+  onToggleNotificationPreview: (enabled: boolean) => void;
+  onToggleRecapSummaryMode: (enabled: boolean) => void;
+  onToggleNotificationDigest: (enabled: boolean) => void;
+  onChangeNotificationDigestWindowMinutes: (minutes: number) => void;
   onToggleSystemNotifications: (enabled: boolean) => void;
   onSignOut: () => void;
   onDeleteToken: () => void;
@@ -48,13 +65,34 @@ interface SettingsMenuProps {
   onChangeColorTheme: (nextTheme: ColorTheme) => void;
   onChangeDarkSurfaceStyle: (nextStyle: DarkSurfaceStyle) => void;
   onChangeCustomAccentColor: (nextColor: string) => void;
+  onChangeComposerQuickEmojis: (nextEmojis: string[]) => void;
+  onChangeReactionQuickEmojis: (nextEmojis: string[]) => void;
   standalone?: boolean;
+}
+
+const MAX_COMPOSER_DEFAULT_EMOJIS = 16;
+const MAX_REACTION_DEFAULT_EMOJIS = 12;
+
+function parseEmojiListInput(rawInput: string, maxCount: number): string[] {
+  return Array.from(
+    new Set(
+      rawInput
+        .split(/[\s,]+/u)
+        .map((emojiToken) => emojiToken.trim())
+        .filter((emojiToken) => emojiToken.length > 0),
+    ),
+  ).slice(0, maxCount);
 }
 
 export function SettingsMenu({
   accessToken,
+  currentUser,
   updateStatus,
   inAppNotificationsEnabled,
+  notificationPreviewEnabled,
+  recapSummaryModeEnabled,
+  notificationDigestEnabled,
+  notificationDigestWindowMinutes,
   systemNotificationsEnabled,
   systemNotificationsSupported,
   systemNotificationPermission,
@@ -62,11 +100,18 @@ export function SettingsMenu({
   colorTheme,
   darkSurfaceStyle,
   customAccentColor,
+  composerQuickEmojis,
+  reactionQuickEmojis,
   onClose,
   onCheckForUpdates,
   onInstallUpdate,
   onOpenLatestRelease,
+  onSaveProfile,
   onToggleInAppNotifications,
+  onToggleNotificationPreview,
+  onToggleRecapSummaryMode,
+  onToggleNotificationDigest,
+  onChangeNotificationDigestWindowMinutes,
   onToggleSystemNotifications,
   onSignOut,
   onDeleteToken,
@@ -74,12 +119,24 @@ export function SettingsMenu({
   onChangeColorTheme,
   onChangeDarkSurfaceStyle,
   onChangeCustomAccentColor,
+  onChangeComposerQuickEmojis,
+  onChangeReactionQuickEmojis,
   standalone = false,
 }: SettingsMenuProps) {
   const [tokenVisible, setTokenVisible] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
   const [confirmDeleteToken, setConfirmDeleteToken] = useState(false);
   const [lastUpdateCheckAt, setLastUpdateCheckAt] = useState<Date | null>(null);
+  const [profileNameDraft, setProfileNameDraft] = useState('');
+  const [profileEmailDraft, setProfileEmailDraft] = useState('');
+  const [profileAvatarUrlDraft, setProfileAvatarUrlDraft] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileSaveMessage, setProfileSaveMessage] = useState<string | null>(null);
+  const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
+  const [composerQuickEmojisDraft, setComposerQuickEmojisDraft] = useState('');
+  const [reactionQuickEmojisDraft, setReactionQuickEmojisDraft] = useState('');
+  const [emojiDefaultsMessage, setEmojiDefaultsMessage] = useState<string | null>(null);
+  const [emojiDefaultsError, setEmojiDefaultsError] = useState<string | null>(null);
 
   const isCheckingUpdates = updateStatus.state === 'checking';
   const isDownloadingUpdate = updateStatus.state === 'downloading';
@@ -185,6 +242,112 @@ export function SettingsMenu({
     { key: 'custom', label: 'Custom' },
   ];
 
+  useEffect(() => {
+    setProfileNameDraft(currentUser?.name ?? '');
+    setProfileEmailDraft(currentUser?.email ?? '');
+    setProfileAvatarUrlDraft(currentUser?.avatar_url ?? '');
+    setProfileSaveError(null);
+  }, [currentUser]);
+
+  useEffect(() => {
+    setComposerQuickEmojisDraft(composerQuickEmojis.join(' '));
+    setReactionQuickEmojisDraft(reactionQuickEmojis.join(' '));
+  }, [composerQuickEmojis, reactionQuickEmojis]);
+
+  const profileUpdatePayload = useMemo<UpdateUserProfileInput>(() => {
+    if (!currentUser) {
+      return {};
+    }
+
+    const nextPayload: UpdateUserProfileInput = {};
+
+    const currentName = currentUser.name.trim();
+    const currentEmail = currentUser.email.trim();
+    const currentAvatarUrl = (currentUser.avatar_url ?? '').trim();
+    const nextName = profileNameDraft.trim();
+    const nextEmail = profileEmailDraft.trim();
+    const nextAvatarUrl = profileAvatarUrlDraft.trim();
+
+    if (nextName !== currentName) {
+      nextPayload.name = nextName;
+    }
+
+    if (nextEmail !== currentEmail) {
+      nextPayload.email = nextEmail;
+    }
+
+    if (nextAvatarUrl !== currentAvatarUrl) {
+      nextPayload.avatar_url = nextAvatarUrl;
+    }
+
+    return nextPayload;
+  }, [currentUser, profileAvatarUrlDraft, profileEmailDraft, profileNameDraft]);
+
+  const hasProfileChanges = useMemo(() => {
+    return Object.keys(profileUpdatePayload).length > 0;
+  }, [profileUpdatePayload]);
+
+  const handleResetProfileDraft = () => {
+    if (!currentUser) {
+      return;
+    }
+
+    setProfileNameDraft(currentUser.name);
+    setProfileEmailDraft(currentUser.email);
+    setProfileAvatarUrlDraft(currentUser.avatar_url ?? '');
+    setProfileSaveMessage(null);
+    setProfileSaveError(null);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!currentUser || isSavingProfile) {
+      return;
+    }
+
+    if (!hasProfileChanges) {
+      setProfileSaveMessage('No profile changes to save.');
+      setProfileSaveError(null);
+      return;
+    }
+
+    if (typeof profileUpdatePayload.name === 'string' && !profileUpdatePayload.name.trim()) {
+      setProfileSaveError('Name cannot be empty.');
+      setProfileSaveMessage(null);
+      return;
+    }
+
+    if (typeof profileUpdatePayload.email === 'string' && !profileUpdatePayload.email.trim()) {
+      setProfileSaveError('Email cannot be empty.');
+      setProfileSaveMessage(null);
+      return;
+    }
+
+    if (
+      typeof profileUpdatePayload.avatar_url === 'string' &&
+      profileUpdatePayload.avatar_url.length > 0 &&
+      !/^https?:\/\//i.test(profileUpdatePayload.avatar_url)
+    ) {
+      setProfileSaveError('Avatar URL must start with http:// or https://');
+      setProfileSaveMessage(null);
+      return;
+    }
+
+    setIsSavingProfile(true);
+    setProfileSaveError(null);
+    setProfileSaveMessage(null);
+
+    try {
+      await onSaveProfile(profileUpdatePayload);
+      setProfileSaveMessage('Profile updated successfully.');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update profile.';
+      setProfileSaveError(errorMessage);
+      setProfileSaveMessage(null);
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
   const handleCopyToken = async () => {
     if (!accessToken) {
       return;
@@ -197,6 +360,36 @@ export function SettingsMenu({
     } catch (error) {
       console.error('Failed to copy token:', error);
     }
+  };
+
+  const handleSaveEmojiDefaults = () => {
+    const nextComposerEmojis = parseEmojiListInput(
+      composerQuickEmojisDraft,
+      MAX_COMPOSER_DEFAULT_EMOJIS,
+    );
+    const nextReactionEmojis = parseEmojiListInput(
+      reactionQuickEmojisDraft,
+      MAX_REACTION_DEFAULT_EMOJIS,
+    );
+
+    if (nextComposerEmojis.length === 0) {
+      setEmojiDefaultsError('Add at least one quick composer emoji.');
+      setEmojiDefaultsMessage(null);
+      return;
+    }
+
+    if (nextReactionEmojis.length === 0) {
+      setEmojiDefaultsError('Add at least one quick reaction emoji.');
+      setEmojiDefaultsMessage(null);
+      return;
+    }
+
+    onChangeComposerQuickEmojis(nextComposerEmojis);
+    onChangeReactionQuickEmojis(nextReactionEmojis);
+    setComposerQuickEmojisDraft(nextComposerEmojis.join(' '));
+    setReactionQuickEmojisDraft(nextReactionEmojis.join(' '));
+    setEmojiDefaultsError(null);
+    setEmojiDefaultsMessage('Emoji defaults saved.');
   };
 
   return (
@@ -350,6 +543,79 @@ export function SettingsMenu({
           </section>
 
           <section className="space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">Emoji Defaults</h3>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/70 p-3 space-y-3">
+              <label className="space-y-1 block">
+                <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                  Composer quick emojis (space or comma separated)
+                </span>
+                <input
+                  type="text"
+                  value={composerQuickEmojisDraft}
+                  onChange={(event) => {
+                    setComposerQuickEmojisDraft(event.target.value);
+                    setEmojiDefaultsError(null);
+                    setEmojiDefaultsMessage(null);
+                  }}
+                  placeholder="😀 😂 ❤️ 👍"
+                  className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200"
+                />
+              </label>
+
+              <label className="space-y-1 block">
+                <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                  Reaction quick emojis (space or comma separated)
+                </span>
+                <input
+                  type="text"
+                  value={reactionQuickEmojisDraft}
+                  onChange={(event) => {
+                    setReactionQuickEmojisDraft(event.target.value);
+                    setEmojiDefaultsError(null);
+                    setEmojiDefaultsMessage(null);
+                  }}
+                  placeholder="👍 ❤️ 😂 🔥 😮 😢"
+                  className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200"
+                />
+              </label>
+
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                Quick composer list shows in the Emoji menu. Quick reaction list shows when you click React on a message.
+              </p>
+
+              {emojiDefaultsError && (
+                <p className="text-xs text-rose-600 dark:text-rose-300">{emojiDefaultsError}</p>
+              )}
+
+              {emojiDefaultsMessage && (
+                <p className="text-xs text-emerald-600 dark:text-emerald-300">{emojiDefaultsMessage}</p>
+              )}
+
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setComposerQuickEmojisDraft(composerQuickEmojis.join(' '));
+                    setReactionQuickEmojisDraft(reactionQuickEmojis.join(' '));
+                    setEmojiDefaultsError(null);
+                    setEmojiDefaultsMessage(null);
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEmojiDefaults}
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+                >
+                  Save emoji defaults
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-2">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">Access Token</h3>
             <div className="flex items-center gap-2">
               <input
@@ -409,6 +675,116 @@ export function SettingsMenu({
           </section>
 
           <section className="space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">Profile</h3>
+
+            {currentUser ? (
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/70 p-3 space-y-3">
+                <div className="flex items-center gap-3">
+                  <Avatar
+                    src={profileAvatarUrlDraft.trim() || null}
+                    alt={profileNameDraft || currentUser.name}
+                    className="w-11 h-11 rounded-full object-cover"
+                    fallback={
+                      <div className="w-11 h-11 rounded-full bg-blue-500 flex items-center justify-center">
+                        <span className="text-white font-semibold text-base">
+                          {(profileNameDraft || currentUser.name).trim().charAt(0).toUpperCase() || 'U'}
+                        </span>
+                      </div>
+                    }
+                  />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                      {profileNameDraft.trim() || 'Unnamed user'}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {profileEmailDraft.trim() || 'No email on file'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label className="space-y-1">
+                    <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300">Name</span>
+                    <input
+                      type="text"
+                      value={profileNameDraft}
+                      onChange={(event) => {
+                        setProfileNameDraft(event.target.value);
+                        setProfileSaveMessage(null);
+                        setProfileSaveError(null);
+                      }}
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200"
+                    />
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300">Email</span>
+                    <input
+                      type="email"
+                      value={profileEmailDraft}
+                      onChange={(event) => {
+                        setProfileEmailDraft(event.target.value);
+                        setProfileSaveMessage(null);
+                        setProfileSaveError(null);
+                      }}
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200"
+                    />
+                  </label>
+                </div>
+
+                <label className="space-y-1 block">
+                  <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300">Avatar URL</span>
+                  <input
+                    type="url"
+                    value={profileAvatarUrlDraft}
+                    onChange={(event) => {
+                      setProfileAvatarUrlDraft(event.target.value);
+                      setProfileSaveMessage(null);
+                      setProfileSaveError(null);
+                    }}
+                    placeholder="https://example.com/avatar.png"
+                    className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200"
+                  />
+                </label>
+
+                {profileSaveError && (
+                  <p className="text-xs text-rose-600 dark:text-rose-300">{profileSaveError}</p>
+                )}
+
+                {profileSaveMessage && (
+                  <p className="text-xs text-emerald-600 dark:text-emerald-300">{profileSaveMessage}</p>
+                )}
+
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    onClick={handleResetProfileDraft}
+                    disabled={!hasProfileChanges || isSavingProfile}
+                    className="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Reset
+                  </button>
+                  <button
+                    onClick={() => {
+                      void handleSaveProfile();
+                    }}
+                    disabled={!hasProfileChanges || isSavingProfile}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSavingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    {isSavingProfile ? 'Saving...' : 'Save profile'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/70 px-3 py-2">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Profile details are unavailable right now. Try reopening settings.
+                </p>
+              </div>
+            )}
+          </section>
+
+          <section className="space-y-2">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">Notifications</h3>
 
             <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/70 px-3 py-2.5 space-y-3">
@@ -430,6 +806,90 @@ export function SettingsMenu({
                   {inAppNotificationsEnabled ? 'On' : 'Off'}
                 </button>
               </div>
+
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-100">Message previews</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Include message content in notification bodies. Turn off for privacy.
+                  </p>
+                </div>
+                <button
+                  onClick={() => onToggleNotificationPreview(!notificationPreviewEnabled)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors ${
+                    notificationPreviewEnabled
+                      ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+                      : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  {notificationPreviewEnabled ? 'On' : 'Off'}
+                </button>
+              </div>
+
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-100">Recap summary mode</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Bundle simultaneous conversation alerts into a single summary notification.
+                  </p>
+                </div>
+                <button
+                  onClick={() => onToggleRecapSummaryMode(!recapSummaryModeEnabled)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors ${
+                    recapSummaryModeEnabled
+                      ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+                      : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  {recapSummaryModeEnabled ? 'On' : 'Off'}
+                </button>
+              </div>
+
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-100">Notification digest</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Group bursts of alerts and deliver them together after a short window.
+                  </p>
+                </div>
+                <button
+                  onClick={() => onToggleNotificationDigest(!notificationDigestEnabled)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors ${
+                    notificationDigestEnabled
+                      ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+                      : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  {notificationDigestEnabled ? 'On' : 'Off'}
+                </button>
+              </div>
+
+              {notificationDigestEnabled && (
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium text-gray-700 dark:text-gray-200">Digest window</p>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                      Hold alerts for this many minutes before flushing grouped notifications.
+                    </p>
+                  </div>
+                  <div className="inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-gray-600 p-1">
+                    {[1, 3, 5, 10].map((windowMinutesOption) => (
+                      <button
+                        key={windowMinutesOption}
+                        type="button"
+                        onClick={() => onChangeNotificationDigestWindowMinutes(windowMinutesOption)}
+                        className={`px-2 py-1 rounded text-[11px] font-semibold ${
+                          notificationDigestWindowMinutes === windowMinutesOption
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
+                        }`}
+                      >
+                        {windowMinutesOption}m
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-start justify-between gap-3">
                 <div>
