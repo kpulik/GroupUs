@@ -22,7 +22,7 @@ import {
   X,
   AlertTriangle,
 } from 'lucide-react';
-import type { AppearancePreference, ColorTheme, DarkSurfaceStyle } from '../../App';
+import type { AppearancePreference, ColorTheme, DarkSurfaceStyle, LightBackgroundPreset } from '../../App';
 import type {
   UpdateUserProfileInput,
   User,
@@ -43,8 +43,11 @@ interface SettingsMenuProps {
   systemNotificationsSupported: boolean;
   systemNotificationPermission: NotificationPermission;
   appearancePreference: AppearancePreference;
+  lightBackgroundPreset: LightBackgroundPreset;
+  customLightBgColor: string;
   colorTheme: ColorTheme;
   darkSurfaceStyle: DarkSurfaceStyle;
+  customDarkBgColor: string;
   customAccentColor: string;
   composerQuickEmojis: string[];
   reactionQuickEmojis: string[];
@@ -62,8 +65,11 @@ interface SettingsMenuProps {
   onSignOut: () => void;
   onDeleteToken: () => void;
   onChangeAppearance: (nextPreference: AppearancePreference) => void;
+  onChangeLightBackgroundPreset: (nextPreset: LightBackgroundPreset) => void;
+  onChangeCustomLightBgColor: (nextColor: string) => void;
   onChangeColorTheme: (nextTheme: ColorTheme) => void;
   onChangeDarkSurfaceStyle: (nextStyle: DarkSurfaceStyle) => void;
+  onChangeCustomDarkBgColor: (nextColor: string) => void;
   onChangeCustomAccentColor: (nextColor: string) => void;
   onChangeComposerQuickEmojis: (nextEmojis: string[]) => void;
   onChangeReactionQuickEmojis: (nextEmojis: string[]) => void;
@@ -97,8 +103,11 @@ export function SettingsMenu({
   systemNotificationsSupported,
   systemNotificationPermission,
   appearancePreference,
+  lightBackgroundPreset,
+  customLightBgColor,
   colorTheme,
   darkSurfaceStyle,
+  customDarkBgColor,
   customAccentColor,
   composerQuickEmojis,
   reactionQuickEmojis,
@@ -116,8 +125,11 @@ export function SettingsMenu({
   onSignOut,
   onDeleteToken,
   onChangeAppearance,
+  onChangeLightBackgroundPreset,
+  onChangeCustomLightBgColor,
   onChangeColorTheme,
   onChangeDarkSurfaceStyle,
+  onChangeCustomDarkBgColor,
   onChangeCustomAccentColor,
   onChangeComposerQuickEmojis,
   onChangeReactionQuickEmojis,
@@ -456,30 +468,115 @@ export function SettingsMenu({
           </section>
 
           <section className="space-y-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">Dark Surface</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Applies when dark mode is active.</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => onChangeDarkSurfaceStyle('default')}
-                className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                  darkSurfaceStyle === 'default'
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700'
-                }`}
-              >
-                Dark Blue
-              </button>
-              <button
-                onClick={() => onChangeDarkSurfaceStyle('black')}
-                className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                  darkSurfaceStyle === 'black'
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700'
-                }`}
-              >
-                Pure Black (OLED)
-              </button>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">Light Background</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Applies when light mode is active.</p>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { key: 'white' as const, label: 'White', swatch: '#f9fafb' },
+                { key: 'cream' as const, label: 'Cream', swatch: '#faf7f2' },
+                { key: 'sky' as const, label: 'Sky', swatch: '#e4edfc' },
+                { key: 'mint' as const, label: 'Mint', swatch: '#e2f5e9' },
+                { key: 'blush' as const, label: 'Blush', swatch: '#f9e4ea' },
+                { key: 'custom' as const, label: 'Custom' },
+              ]).map((option) => {
+                const selected = lightBackgroundPreset === option.key;
+                return (
+                  <button
+                    key={option.key}
+                    onClick={() => onChangeLightBackgroundPreset(option.key)}
+                    className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      selected
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {option.key === 'custom' ? (
+                      <span
+                        className="w-3 h-3 rounded-full border border-gray-300 dark:border-gray-500"
+                        style={{ backgroundColor: customLightBgColor }}
+                      />
+                    ) : (
+                      <span
+                        className="w-3 h-3 rounded-full border border-black/10 dark:border-white/20"
+                        style={{ backgroundColor: option.swatch }}
+                      />
+                    )}
+                    {option.label}
+                  </button>
+                );
+              })}
             </div>
+            {lightBackgroundPreset === 'custom' && (
+              <div className="mt-2 flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/80 p-2">
+                <label htmlFor="custom-light-bg-color" className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                  Pick background
+                </label>
+                <input
+                  id="custom-light-bg-color"
+                  type="color"
+                  value={customLightBgColor}
+                  onChange={(event) => onChangeCustomLightBgColor(event.target.value)}
+                  className="h-8 w-10 rounded border border-gray-300 dark:border-gray-500 bg-transparent p-0 cursor-pointer"
+                  title="Choose custom light background color"
+                />
+              </div>
+            )}
+          </section>
+
+          <section className="space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">Dark Background</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Applies when dark mode is active.</p>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { key: 'default' as const, label: 'Slate', swatch: '#1e293b' },
+                { key: 'black' as const, label: 'Black', swatch: '#000000' },
+                { key: 'charcoal' as const, label: 'Charcoal', swatch: '#171717' },
+                { key: 'ocean' as const, label: 'Ocean', swatch: '#0a1a1f' },
+                { key: 'plum' as const, label: 'Plum', swatch: '#150a1e' },
+                { key: 'custom' as const, label: 'Custom' },
+              ]).map((option) => {
+                const selected = darkSurfaceStyle === option.key;
+                return (
+                  <button
+                    key={option.key}
+                    onClick={() => onChangeDarkSurfaceStyle(option.key)}
+                    className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      selected
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {option.key === 'custom' ? (
+                      <span
+                        className="w-3 h-3 rounded-full border border-gray-300 dark:border-gray-500"
+                        style={{ backgroundColor: customDarkBgColor }}
+                      />
+                    ) : (
+                      <span
+                        className="w-3 h-3 rounded-full border border-black/10 dark:border-white/20"
+                        style={{ backgroundColor: option.swatch }}
+                      />
+                    )}
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+            {darkSurfaceStyle === 'custom' && (
+              <div className="mt-2 flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/80 p-2">
+                <label htmlFor="custom-dark-bg-color" className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                  Pick background
+                </label>
+                <input
+                  id="custom-dark-bg-color"
+                  type="color"
+                  value={customDarkBgColor}
+                  onChange={(event) => onChangeCustomDarkBgColor(event.target.value)}
+                  className="h-8 w-10 rounded border border-gray-300 dark:border-gray-500 bg-transparent p-0 cursor-pointer"
+                  title="Choose custom dark background color"
+                />
+              </div>
+            )}
           </section>
 
           <section className="space-y-2">

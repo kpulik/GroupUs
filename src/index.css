@@ -88,125 +88,173 @@ html .shadow-blue-500\/30 {
 	--tw-shadow: var(--tw-shadow-colored) !important;
 }
 
+/* ── Light background presets ──────────────────────────────────────── */
+
+html[data-light-bg='cream'] {
+	--light-bg-from: #faf7f2;
+	--light-bg-to: #f3ede3;
+}
+
+html[data-light-bg='sky'] {
+	--light-bg-from: #f0f5ff;
+	--light-bg-to: #e4edfc;
+}
+
+html[data-light-bg='mint'] {
+	--light-bg-from: #f0faf4;
+	--light-bg-to: #e2f5e9;
+}
+
+html[data-light-bg='blush'] {
+	--light-bg-from: #fdf2f5;
+	--light-bg-to: #f9e4ea;
+}
+
+html:not(.dark)[data-light-bg] body {
+	background-color: var(--light-bg-to);
+}
+
+html:not(.dark)[data-light-bg] .from-gray-50 {
+	--tw-gradient-from: var(--light-bg-from) var(--tw-gradient-from-position) !important;
+	--tw-gradient-to: rgb(255 255 255 / 0) var(--tw-gradient-to-position);
+	--tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+html:not(.dark)[data-light-bg] .to-gray-100 {
+	--tw-gradient-to: var(--light-bg-to) var(--tw-gradient-to-position) !important;
+}
+
+/* ── Dark background presets ──────────────────────────────────────── */
+
 html.dark[data-dark-surface='black'] {
 	--dark-surface-900: #000000;
-	--dark-surface-900-90: rgb(0 0 0 / 0.9);
-	--dark-surface-900-80: rgb(0 0 0 / 0.8);
-	--dark-surface-900-75: rgb(0 0 0 / 0.75);
-	--dark-surface-900-70: rgb(0 0 0 / 0.7);
-	--dark-surface-900-60: rgb(0 0 0 / 0.6);
-	--dark-surface-900-50: rgb(0 0 0 / 0.5);
-	--dark-surface-900-40: rgb(0 0 0 / 0.4);
 	--dark-surface-800: #101010;
-	--dark-surface-800-90: rgb(16 16 16 / 0.9);
-	--dark-surface-800-85: rgb(16 16 16 / 0.85);
-	--dark-surface-800-80: rgb(16 16 16 / 0.8);
-	--dark-surface-800-70: rgb(16 16 16 / 0.7);
-	--dark-surface-800-40: rgb(16 16 16 / 0.4);
 	--dark-surface-700: #1d1d1d;
-	--dark-surface-700-60: rgb(29 29 29 / 0.6);
 	--dark-surface-600: #2a2a2a;
 }
 
-html.dark[data-dark-surface='black'] body {
+html.dark[data-dark-surface='charcoal'] {
+	--dark-surface-900: #171717;
+	--dark-surface-800: #222222;
+	--dark-surface-700: #2d2d2d;
+	--dark-surface-600: #383838;
+}
+
+html.dark[data-dark-surface='ocean'] {
+	--dark-surface-900: #0a1a1f;
+	--dark-surface-800: #112530;
+	--dark-surface-700: #1a3040;
+	--dark-surface-600: #233b4f;
+}
+
+html.dark[data-dark-surface='plum'] {
+	--dark-surface-900: #150a1e;
+	--dark-surface-800: #1e1230;
+	--dark-surface-700: #281b40;
+	--dark-surface-600: #32244f;
+}
+
+/* ── Shared dark background overrides (active for any non-default preset) */
+
+html.dark[data-dark-surface] body {
 	background-color: var(--dark-surface-900);
 }
 
-html.dark[data-dark-surface='black'] .dark\:from-slate-900 {
+html.dark[data-dark-surface] .dark\:from-slate-900 {
 	--tw-gradient-from: var(--dark-surface-900) var(--tw-gradient-from-position) !important;
 	--tw-gradient-to: rgb(0 0 0 / 0) var(--tw-gradient-to-position);
 	--tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
 }
 
-html.dark[data-dark-surface='black'] .dark\:to-gray-900 {
+html.dark[data-dark-surface] .dark\:to-gray-900 {
 	--tw-gradient-to: var(--dark-surface-900) var(--tw-gradient-to-position) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:bg-slate-900,
-html.dark[data-dark-surface='black'] .dark\:bg-gray-900 {
+html.dark[data-dark-surface] .dark\:bg-slate-900,
+html.dark[data-dark-surface] .dark\:bg-gray-900 {
 	background-color: var(--dark-surface-900) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:bg-gray-900\/90 {
-	background-color: var(--dark-surface-900-90) !important;
+html.dark[data-dark-surface] .dark\:bg-gray-900\/90 {
+	background-color: color-mix(in srgb, var(--dark-surface-900) 90%, transparent) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:bg-gray-900\/80 {
-	background-color: var(--dark-surface-900-80) !important;
+html.dark[data-dark-surface] .dark\:bg-gray-900\/80 {
+	background-color: color-mix(in srgb, var(--dark-surface-900) 80%, transparent) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:bg-gray-900\/75 {
-	background-color: var(--dark-surface-900-75) !important;
+html.dark[data-dark-surface] .dark\:bg-gray-900\/75 {
+	background-color: color-mix(in srgb, var(--dark-surface-900) 75%, transparent) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:bg-gray-900\/70 {
-	background-color: var(--dark-surface-900-70) !important;
+html.dark[data-dark-surface] .dark\:bg-gray-900\/70 {
+	background-color: color-mix(in srgb, var(--dark-surface-900) 70%, transparent) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:bg-gray-900\/60 {
-	background-color: var(--dark-surface-900-60) !important;
+html.dark[data-dark-surface] .dark\:bg-gray-900\/60 {
+	background-color: color-mix(in srgb, var(--dark-surface-900) 60%, transparent) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:bg-gray-900\/50 {
-	background-color: var(--dark-surface-900-50) !important;
+html.dark[data-dark-surface] .dark\:bg-gray-900\/50 {
+	background-color: color-mix(in srgb, var(--dark-surface-900) 50%, transparent) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:bg-gray-900\/40 {
-	background-color: var(--dark-surface-900-40) !important;
+html.dark[data-dark-surface] .dark\:bg-gray-900\/40 {
+	background-color: color-mix(in srgb, var(--dark-surface-900) 40%, transparent) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:bg-gray-800 {
+html.dark[data-dark-surface] .dark\:bg-gray-800 {
 	background-color: var(--dark-surface-800) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:bg-gray-800\/90 {
-	background-color: var(--dark-surface-800-90) !important;
+html.dark[data-dark-surface] .dark\:bg-gray-800\/90 {
+	background-color: color-mix(in srgb, var(--dark-surface-800) 90%, transparent) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:bg-gray-800\/85 {
-	background-color: var(--dark-surface-800-85) !important;
+html.dark[data-dark-surface] .dark\:bg-gray-800\/85 {
+	background-color: color-mix(in srgb, var(--dark-surface-800) 85%, transparent) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:bg-gray-800\/80 {
-	background-color: var(--dark-surface-800-80) !important;
+html.dark[data-dark-surface] .dark\:bg-gray-800\/80 {
+	background-color: color-mix(in srgb, var(--dark-surface-800) 80%, transparent) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:bg-gray-800\/70 {
-	background-color: var(--dark-surface-800-70) !important;
+html.dark[data-dark-surface] .dark\:bg-gray-800\/70 {
+	background-color: color-mix(in srgb, var(--dark-surface-800) 70%, transparent) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:bg-gray-800\/40 {
-	background-color: var(--dark-surface-800-40) !important;
+html.dark[data-dark-surface] .dark\:bg-gray-800\/40 {
+	background-color: color-mix(in srgb, var(--dark-surface-800) 40%, transparent) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:bg-gray-700 {
+html.dark[data-dark-surface] .dark\:bg-gray-700 {
 	background-color: var(--dark-surface-700) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:bg-gray-700\/60 {
-	background-color: var(--dark-surface-700-60) !important;
+html.dark[data-dark-surface] .dark\:bg-gray-700\/60 {
+	background-color: color-mix(in srgb, var(--dark-surface-700) 60%, transparent) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:bg-gray-600 {
+html.dark[data-dark-surface] .dark\:bg-gray-600 {
 	background-color: var(--dark-surface-600) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:hover\:bg-gray-800:hover {
+html.dark[data-dark-surface] .dark\:hover\:bg-gray-800:hover {
 	background-color: var(--dark-surface-800) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:hover\:bg-gray-800\/80:hover {
-	background-color: var(--dark-surface-800-80) !important;
+html.dark[data-dark-surface] .dark\:hover\:bg-gray-800\/80:hover {
+	background-color: color-mix(in srgb, var(--dark-surface-800) 80%, transparent) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:hover\:bg-gray-700:hover {
+html.dark[data-dark-surface] .dark\:hover\:bg-gray-700:hover {
 	background-color: var(--dark-surface-700) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:hover\:bg-gray-700\/60:hover {
-	background-color: var(--dark-surface-700-60) !important;
+html.dark[data-dark-surface] .dark\:hover\:bg-gray-700\/60:hover {
+	background-color: color-mix(in srgb, var(--dark-surface-700) 60%, transparent) !important;
 }
 
-html.dark[data-dark-surface='black'] .dark\:hover\:bg-gray-600:hover {
+html.dark[data-dark-surface] .dark\:hover\:bg-gray-600:hover {
 	background-color: var(--dark-surface-600) !important;
 }

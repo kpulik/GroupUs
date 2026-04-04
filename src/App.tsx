@@ -17,7 +17,8 @@ import { MessageSquare } from 'lucide-react';
 export type ConversationFilter = 'all' | 'groups' | 'chats' | 'unread';
 export type AppearancePreference = 'light' | 'dark' | 'system';
 export type ColorTheme = 'blue' | 'emerald' | 'rose' | 'amber' | 'custom';
-export type DarkSurfaceStyle = 'default' | 'black';
+export type LightBackgroundPreset = 'white' | 'cream' | 'sky' | 'mint' | 'blush' | 'custom';
+export type DarkSurfaceStyle = 'default' | 'black' | 'charcoal' | 'ocean' | 'plum' | 'custom';
 export type ConversationNotificationPreviewOverride = 'on' | 'off';
 export type ConversationNotificationPreviewMode = 'default' | ConversationNotificationPreviewOverride;
 const MUTED_CONVERSATIONS_STORAGE_KEY = 'groupus_muted_conversations';
@@ -25,6 +26,9 @@ const READ_STATE_STORAGE_KEY = 'groupus_conversation_read_state';
 const APPEARANCE_STORAGE_KEY = 'groupus_appearance_preference';
 const COLOR_THEME_STORAGE_KEY = 'groupus_color_theme';
 const CUSTOM_ACCENT_COLOR_STORAGE_KEY = 'groupus_custom_accent_color';
+const LIGHT_BG_STORAGE_KEY = 'groupus_light_background_preset';
+const CUSTOM_LIGHT_BG_COLOR_STORAGE_KEY = 'groupus_custom_light_bg_color';
+const CUSTOM_DARK_BG_COLOR_STORAGE_KEY = 'groupus_custom_dark_bg_color';
 const DARK_SURFACE_STORAGE_KEY = 'groupus_dark_surface_style';
 const IN_APP_NOTIFICATIONS_STORAGE_KEY = 'groupus_in_app_notifications_enabled';
 const SYSTEM_NOTIFICATIONS_STORAGE_KEY = 'groupus_system_notifications_enabled';
@@ -262,6 +266,39 @@ function createCustomAccentPalette(baseColor: string): AccentPalette {
     accent700: blendHex(normalizedBase, '#000000', 0.72),
   };
 }
+
+interface LightBgPalette {
+  bgFrom: string;
+  bgTo: string;
+}
+
+function createCustomLightBgPalette(baseColor: string): LightBgPalette {
+  const normalized = normalizeHexColor(baseColor);
+  return {
+    bgFrom: blendHex('#ffffff', normalized, 0.9),
+    bgTo: blendHex('#ffffff', normalized, 0.82),
+  };
+}
+
+interface DarkBgPalette {
+  surface900: string;
+  surface800: string;
+  surface700: string;
+  surface600: string;
+}
+
+function createCustomDarkBgPalette(baseColor: string): DarkBgPalette {
+  const normalized = normalizeHexColor(baseColor);
+  return {
+    surface900: normalized,
+    surface800: blendHex(normalized, '#ffffff', 0.94),
+    surface700: blendHex(normalized, '#ffffff', 0.88),
+    surface600: blendHex(normalized, '#ffffff', 0.82),
+  };
+}
+
+const VALID_LIGHT_BG_PRESETS: LightBackgroundPreset[] = ['white', 'cream', 'sky', 'mint', 'blush', 'custom'];
+const VALID_DARK_SURFACE_STYLES: DarkSurfaceStyle[] = ['default', 'black', 'charcoal', 'ocean', 'plum', 'custom'];
 
 interface ConversationReadState {
   lastReadUpdatedAt: number;
@@ -575,12 +612,24 @@ function App() {
 
     return 'blue';
   });
+  const [lightBackgroundPreset, setLightBackgroundPreset] = useState<LightBackgroundPreset>(() => {
+    const storedValue = localStorage.getItem(LIGHT_BG_STORAGE_KEY);
+    if (storedValue && VALID_LIGHT_BG_PRESETS.includes(storedValue as LightBackgroundPreset)) {
+      return storedValue as LightBackgroundPreset;
+    }
+    return 'white';
+  });
+  const [customLightBgColor, setCustomLightBgColor] = useState<string>(() => {
+    return normalizeHexColor(localStorage.getItem(CUSTOM_LIGHT_BG_COLOR_STORAGE_KEY));
+  });
+  const [customDarkBgColor, setCustomDarkBgColor] = useState<string>(() => {
+    return normalizeHexColor(localStorage.getItem(CUSTOM_DARK_BG_COLOR_STORAGE_KEY));
+  });
   const [darkSurfaceStyle, setDarkSurfaceStyle] = useState<DarkSurfaceStyle>(() => {
     const storedValue = localStorage.getItem(DARK_SURFACE_STORAGE_KEY);
-    if (storedValue === 'default' || storedValue === 'black') {
-      return storedValue;
+    if (storedValue && VALID_DARK_SURFACE_STYLES.includes(storedValue as DarkSurfaceStyle)) {
+      return storedValue as DarkSurfaceStyle;
     }
-
     return 'default';
   });
   const [customAccentColor, setCustomAccentColor] = useState<string>(() => {
@@ -944,9 +993,68 @@ function App() {
   }, [colorTheme]);
 
   useEffect(() => {
+    localStorage.setItem(LIGHT_BG_STORAGE_KEY, lightBackgroundPreset);
+    if (lightBackgroundPreset === 'white') {
+      delete document.documentElement.dataset.lightBg;
+    } else {
+      document.documentElement.dataset.lightBg = lightBackgroundPreset;
+    }
+  }, [lightBackgroundPreset]);
+
+  useEffect(() => {
+    const normalizedColor = normalizeHexColor(customLightBgColor);
+    if (normalizedColor !== customLightBgColor) {
+      setCustomLightBgColor(normalizedColor);
+      return;
+    }
+
+    localStorage.setItem(CUSTOM_LIGHT_BG_COLOR_STORAGE_KEY, normalizedColor);
+
+    const root = document.documentElement;
+    if (lightBackgroundPreset !== 'custom') {
+      root.style.removeProperty('--light-bg-from');
+      root.style.removeProperty('--light-bg-to');
+      return;
+    }
+
+    const palette = createCustomLightBgPalette(normalizedColor);
+    root.style.setProperty('--light-bg-from', palette.bgFrom);
+    root.style.setProperty('--light-bg-to', palette.bgTo);
+  }, [lightBackgroundPreset, customLightBgColor]);
+
+  useEffect(() => {
     localStorage.setItem(DARK_SURFACE_STORAGE_KEY, darkSurfaceStyle);
-    document.documentElement.dataset.darkSurface = darkSurfaceStyle;
+    if (darkSurfaceStyle === 'default') {
+      delete document.documentElement.dataset.darkSurface;
+    } else {
+      document.documentElement.dataset.darkSurface = darkSurfaceStyle;
+    }
   }, [darkSurfaceStyle]);
+
+  useEffect(() => {
+    const normalizedColor = normalizeHexColor(customDarkBgColor);
+    if (normalizedColor !== customDarkBgColor) {
+      setCustomDarkBgColor(normalizedColor);
+      return;
+    }
+
+    localStorage.setItem(CUSTOM_DARK_BG_COLOR_STORAGE_KEY, normalizedColor);
+
+    const root = document.documentElement;
+    if (darkSurfaceStyle !== 'custom') {
+      root.style.removeProperty('--dark-surface-900');
+      root.style.removeProperty('--dark-surface-800');
+      root.style.removeProperty('--dark-surface-700');
+      root.style.removeProperty('--dark-surface-600');
+      return;
+    }
+
+    const palette = createCustomDarkBgPalette(normalizedColor);
+    root.style.setProperty('--dark-surface-900', palette.surface900);
+    root.style.setProperty('--dark-surface-800', palette.surface800);
+    root.style.setProperty('--dark-surface-700', palette.surface700);
+    root.style.setProperty('--dark-surface-600', palette.surface600);
+  }, [darkSurfaceStyle, customDarkBgColor]);
 
   useEffect(() => {
     const normalizedColor = normalizeHexColor(customAccentColor);
@@ -2125,10 +2233,16 @@ function App() {
           }}
           appearancePreference={appearancePreference}
           onChangeAppearance={setAppearancePreference}
+          lightBackgroundPreset={lightBackgroundPreset}
+          onChangeLightBackgroundPreset={setLightBackgroundPreset}
+          customLightBgColor={customLightBgColor}
+          onChangeCustomLightBgColor={setCustomLightBgColor}
           colorTheme={colorTheme}
           onChangeColorTheme={setColorTheme}
           darkSurfaceStyle={darkSurfaceStyle}
           onChangeDarkSurfaceStyle={setDarkSurfaceStyle}
+          customDarkBgColor={customDarkBgColor}
+          onChangeCustomDarkBgColor={setCustomDarkBgColor}
           customAccentColor={customAccentColor}
           onChangeCustomAccentColor={setCustomAccentColor}
           composerQuickEmojis={composerQuickEmojis}
@@ -2304,10 +2418,16 @@ function App() {
           }}
           appearancePreference={appearancePreference}
           onChangeAppearance={setAppearancePreference}
+          lightBackgroundPreset={lightBackgroundPreset}
+          onChangeLightBackgroundPreset={setLightBackgroundPreset}
+          customLightBgColor={customLightBgColor}
+          onChangeCustomLightBgColor={setCustomLightBgColor}
           colorTheme={colorTheme}
           onChangeColorTheme={setColorTheme}
           darkSurfaceStyle={darkSurfaceStyle}
           onChangeDarkSurfaceStyle={setDarkSurfaceStyle}
+          customDarkBgColor={customDarkBgColor}
+          onChangeCustomDarkBgColor={setCustomDarkBgColor}
           customAccentColor={customAccentColor}
           onChangeCustomAccentColor={setCustomAccentColor}
           composerQuickEmojis={composerQuickEmojis}
