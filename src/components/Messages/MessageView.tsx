@@ -1179,19 +1179,20 @@ function getFileExtension(fileName: string): string {
 
 function isSupportedFileDraft(file: File): boolean {
   const normalizedType = file.type.toLowerCase();
+  const extension = getFileExtension(file.name);
+  // Exclude .blockmap files explicitly
+  if (extension === 'blockmap') {
+    return false;
+  }
   if (normalizedType.startsWith('image/')) {
     return true;
   }
-
   if (normalizedType.startsWith('text/')) {
     return true;
   }
-
   if (ALLOWED_FILE_DRAFT_MIME_TYPES.has(normalizedType)) {
     return true;
   }
-
-  const extension = getFileExtension(file.name);
   return extension ? ALLOWED_FILE_DRAFT_EXTENSIONS.has(extension) : false;
 }
 
@@ -2067,6 +2068,7 @@ function readReceiptIncludesMessage(
   return false;
 }
 
+// ...existing code...
 export function MessageView({
   conversation,
   activeConversation,
@@ -2085,6 +2087,8 @@ export function MessageView({
     return parseStoredBoolean(localStorage.getItem(MARKDOWN_COMPOSER_ENABLED_STORAGE_KEY), false);
   });
   const [composerDraftAttachments, setComposerDraftAttachments] = useState<ComposerDraftAttachment[]>([]);
+  // Collapsible formatting & attachment toolbars
+  const [showComposerToolbar, setShowComposerToolbar] = useState(true);
   const [photoDraftUploadStateById, setPhotoDraftUploadStateById] = useState<
     Record<string, PhotoDraftUploadState>
   >({});
@@ -4088,7 +4092,12 @@ export function MessageView({
 
   const openPhotoPicker = () => {
     photoInputRef.current?.click();
-  };
+  }
+
+  // Toggle for formatting & attachment toolbars
+  const handleToggleComposerToolbar = () => {
+    setShowComposerToolbar((prev) => !prev);
+  } 
 
   const openPhotoCameraPicker = () => {
     setCameraCaptureMode('photo');
@@ -4373,9 +4382,28 @@ export function MessageView({
             URL.revokeObjectURL(currentDraft.objectUrl);
           }
 
-          return {
-            id: `audio-${Date.now()}`,
-            blob: audioBlob,
+          return (
+            <div className="message-view-root">
+              {/* ...existing code... */}
+              {/* Collapsible formatting & attachment toolbar toggle */}
+              <div className="flex items-center mb-2">
+                <button
+                  type="button"
+                  className="px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+                  onClick={handleToggleComposerToolbar}
+                  aria-label={showComposerToolbar ? 'Collapse formatting & attachment options' : 'Expand formatting & attachment options'}
+                >
+                  {showComposerToolbar ? '− Hide formatting & attachments' : '+ Show formatting & attachments'}
+                </button>
+              </div>
+              {/* Formatting & attachment toolbars, collapsible */}
+              {showComposerToolbar && (
+                <div className="mb-2">
+                  {/* Place your formatting and attachment toolbar components here, or wrap the existing toolbar JSX in this block */}
+                  {/* ...existing formatting & attachment toolbar code... */}
+                </div>
+              )}
+              {/* ...rest of composer UI... */}
             objectUrl: audioObjectUrl,
             durationMs: recordingDurationMs,
           };

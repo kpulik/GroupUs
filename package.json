@@ -75,14 +75,23 @@
         "NSLocationUsageDescription": "GroupUs uses your location only when you choose Current location while composing a message."
       },
       "target": [
-        "dmg",
-        "zip"
+        {
+          "target": "dmg",
+          "blockMap": false
+        },
+        {
+          "target": "zip",
+          "blockMap": false
+        }
       ]
     },
     "win": {
       "icon": "build/icons/icon.ico",
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "blockMap": false
+        }
       ]
     },
     "nsis": {
@@ -93,8 +102,14 @@
     "linux": {
       "icon": "build/icons/linux",
       "target": [
-        "AppImage",
-        "deb"
+        {
+          "target": "AppImage",
+          "blockMap": false
+        },
+        {
+          "target": "deb",
+          "blockMap": false
+        }
       ],
       "category": "Network"
     },
