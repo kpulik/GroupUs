@@ -4377,33 +4377,14 @@ export function MessageView({
         const audioBlob = new Blob(recordingChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
         const audioObjectUrl = URL.createObjectURL(audioBlob);
 
+
         setPendingAudioDraft((currentDraft) => {
           if (currentDraft?.objectUrl) {
             URL.revokeObjectURL(currentDraft.objectUrl);
           }
-
-          return (
-            <div className="message-view-root">
-              {/* ...existing code... */}
-              {/* Collapsible formatting & attachment toolbar toggle */}
-              <div className="flex items-center mb-2">
-                <button
-                  type="button"
-                  className="px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
-                  onClick={handleToggleComposerToolbar}
-                  aria-label={showComposerToolbar ? 'Collapse formatting & attachment options' : 'Expand formatting & attachment options'}
-                >
-                  {showComposerToolbar ? '− Hide formatting & attachments' : '+ Show formatting & attachments'}
-                </button>
-              </div>
-              {/* Formatting & attachment toolbars, collapsible */}
-              {showComposerToolbar && (
-                <div className="mb-2">
-                  {/* Place your formatting and attachment toolbar components here, or wrap the existing toolbar JSX in this block */}
-                  {/* ...existing formatting & attachment toolbar code... */}
-                </div>
-              )}
-              {/* ...rest of composer UI... */}
+          return {
+            id: `audio-${Date.now()}`,
+            blob: audioBlob,
             objectUrl: audioObjectUrl,
             durationMs: recordingDurationMs,
           };
