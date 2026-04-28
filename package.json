@@ -76,12 +76,10 @@
       },
       "target": [
         {
-          "target": "dmg",
-          "blockMap": false
+          "target": "dmg"
         },
         {
-          "target": "zip",
-          "blockMap": false
+          "target": "zip"
         }
       ]
     },
@@ -89,8 +87,7 @@
       "icon": "build/icons/icon.ico",
       "target": [
         {
-          "target": "nsis",
-          "blockMap": false
+          "target": "nsis"
         }
       ]
     },
@@ -103,12 +100,10 @@
       "icon": "build/icons/linux",
       "target": [
         {
-          "target": "AppImage",
-          "blockMap": false
+          "target": "AppImage"
         },
         {
-          "target": "deb",
-          "blockMap": false
+          "target": "deb"
         }
       ],
       "category": "Network"
