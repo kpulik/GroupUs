@@ -1691,7 +1691,7 @@ function isDiscreetModerationRemovalMessage(message: Message): boolean {
 }
 
 function getReplyPreviewForMessage(message: Message): string {
-  const normalizedText = message.text.replace(/\s+/g, ' ').trim();
+  const normalizedText = (message.text ?? '').replace(/\s+/g, ' ').trim();
   if (normalizedText) {
     return normalizedText.length > 96 ? `${normalizedText.slice(0, 93)}...` : normalizedText;
   }
@@ -1777,7 +1777,7 @@ function findReplySourceMessage(
         continue;
       }
 
-      const candidateText = candidate.text.replace(/\s+/g, ' ').trim().toLowerCase();
+      const candidateText = (candidate.text ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
       if (candidateText.startsWith(normalizedPreview)) {
         return candidate;
       }
@@ -6677,7 +6677,7 @@ export function MessageView({
                           ? getReplyPreviewForMessage(sourceMessage)
                           : 'Original message';
                         const fullSourceText = sourceMessage
-                          ? sourceMessage.text.replace(/\s+/g, ' ').trim()
+                          ? (sourceMessage.text ?? '').replace(/\s+/g, ' ').trim()
                           : null;
                         const hasExpandableContent = fullSourceText
                           ? fullSourceText.length > REPLY_QUOTE_COLLAPSED_LENGTH
@@ -6724,7 +6724,7 @@ export function MessageView({
                       );
                       const isLongPreview = parsedReply.previewText.length > REPLY_QUOTE_COLLAPSED_LENGTH;
                       const fullSourceText = sourceMessage
-                        ? sourceMessage.text.replace(/\s+/g, ' ').trim()
+                        ? (sourceMessage.text ?? '').replace(/\s+/g, ' ').trim()
                         : null;
                       const hasExpandableContent = fullSourceText
                         ? fullSourceText.length > REPLY_QUOTE_COLLAPSED_LENGTH
