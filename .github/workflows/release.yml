@@ -50,3 +50,14 @@ jobs:
             echo "Deleting $name"
             gh release delete-asset "$TAG" "$name" --repo "$REPO" --yes
           done || true
+
+  publish-release:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          gh release edit "$TAG" --repo ${{ github.repository }} --draft=false
