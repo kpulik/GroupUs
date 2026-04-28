@@ -58,7 +58,6 @@
     "appId": "com.groupus.desktop",
     "productName": "GroupUs",
     "artifactName": "GroupUs-${version}-${os}-${arch}.${ext}",
-    "noDifferentialPackage": true,
     "publish": [
       {
         "provider": "github",

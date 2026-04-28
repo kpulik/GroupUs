@@ -37,3 +37,16 @@ jobs:
         run: npm run electron:build
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete blockmap assets from release
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          REPO=${{ github.repository }}
+          gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name' 2>/dev/null | grep '\.blockmap$' | while read name; do
+            echo "Deleting $name"
+            gh release delete-asset "$TAG" "$name" --repo "$REPO" --yes
+          done || true
